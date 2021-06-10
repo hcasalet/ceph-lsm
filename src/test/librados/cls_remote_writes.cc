@@ -32,7 +32,7 @@ TEST(ClsTestRemoteWrites, TestScatter) {
   tgt_objects.insert("tgt_object.2");
   tgt_objects.insert("tgt_object.3");
   encode_json("tgt_objects", tgt_objects, formatter);
-  encode_json("cls", "test_remote_reads", formatter);
+  encode_json("cls", "test_remote_operations", formatter);
   encode_json("method", "test_write", formatter);
   encode_json("pool", pool_name, formatter);
   formatter->close_section();
@@ -40,7 +40,7 @@ TEST(ClsTestRemoteWrites, TestScatter) {
   formatter->flush(in);
 
   // create target object by copying data from source object using "test_write" method
-  ASSERT_EQ(0, ioctx.exec("src_object", "test_remote_reads", "test_scatter", in, out));
+  ASSERT_EQ(0, ioctx.exec("src_object", "test_remote_operations", "test_scatter", in, out));
 
   // read target object and check its size
   ASSERT_EQ(object_size, ioctx.read("tgt_object.1", out, 0, 0));
