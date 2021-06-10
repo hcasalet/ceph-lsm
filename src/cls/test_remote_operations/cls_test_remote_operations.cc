@@ -1,12 +1,12 @@
 /*
- * This is an example RADOS object class that shows how to use remote reads.
+ * This is an example RADOS object class that shows how to use remote operations.
  */
 
 #include "common/ceph_json.h"
 #include "objclass/objclass.h"
 
 CLS_VER(1,0)
-CLS_NAME(test_remote_reads)
+CLS_NAME(test_remote_operations)
 
 cls_handle_t h_class;
 cls_method_handle_t h_test_read;
@@ -133,11 +133,11 @@ static int test_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return r;
 }
 
-CLS_INIT(test_remote_reads)
+CLS_INIT(test_remote_operations)
 {
-  CLS_LOG(0, "loading cls_test_remote_reads");
+  CLS_LOG(0, "loading cls_test_remote_operations");
 
-  cls_register("test_remote_reads", &h_class);
+  cls_register("test_remote_operations", &h_class);
   
   cls_register_cxx_method(h_class, "test_read",
 			  CLS_METHOD_RD,
