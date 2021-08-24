@@ -1,7 +1,5 @@
 #!/bin/bash
 
-git clone https://github.com/hcasalet/ceph-lsm.git
-
 cd ceph-lsm
 
 git submodule update --init --recursive
