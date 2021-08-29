@@ -152,7 +152,7 @@ struct cls_lsm_retrieve_data_op {
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
-        DECODE_START(1, 1, bl);
+        DECODE_START(1, bl);
         decode(start_marker, bl);
         DECODE_FINISH(bl);
     }
