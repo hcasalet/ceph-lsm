@@ -1,3 +1,6 @@
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+// vim: ts=8 sw=2 smarttab
+
 #ifndef CEPH_CLS_LSM_OPS_H
 #define CEPH_CLS_LSM_OPS_H
 
@@ -62,6 +65,24 @@ struct cls_lsm_append_entries_op {
 };
 WRITE_CLASS_ENCODER(cls_lsm_append_entries_op)
 
+struct cls_lsm_get_entries_op {
+    cls_lsm_marker marker;
+
+    cls_lsm_get_entries_op() {}
+
+    void encode(ceph::buffer::list& bl) const {
+        ENCODE_START(1, 1, bl);
+        encode(marker, bl);
+        ENCODE_FINISH(bl);
+    }
+
+    void decode(ceph::buffer::list::const_iterator& bl) {
+        DECODE_START(1, bl);
+        decode(marker, bl);
+    }
+};
+WRITE_CLASS_ENCODER(cls_lsm_get_entries_op)
+
 struct cls_lsm_get_entries_ret {
     std::vector<cls_lsm_entry> entries;
 
@@ -116,7 +137,7 @@ struct cls_lsm_get_child_object_name_ret {
         decode(child_object_name, bl);
         DECODE_FINISH(bl);
     }
-}
+};
 WRITE_CLASS_ENCODER(cls_lsm_get_child_object_name_ret)
 
 struct cls_lsm_retrieve_data_op {

@@ -71,6 +71,28 @@ struct cls_lsm_child_object_naming_map
 };
 WRITE_CLASS_ENCODER(cls_lsm_child_object_naming_map)
 
+// marker for an entry
+struct cls_lsm_marker
+{
+    uint64_t begin_offset;
+    uint64_t end_offset;
+
+    void encode(ceph::buffer::list& bl) const {
+        ENCODE_START(1, 1, bl);
+        encode(begin_offset, bl);
+        encode(end_offset, bl);
+        ENCODE_FINISH(bl);
+    }
+    
+    void decode(ceph::buffer::list::const_iterator& bl) {
+        DECODE_START(1, bl);
+        decode(begin_offset, bl);
+        decode(end_offset, bl);
+        DECODE_FINISH(bl);
+    }
+};
+WRITE_CLASS_ENCODER(cls_lsm_marker)
+
 // application data stored in the lsm node
 // key-value format; value is a map of "column name -> bufferlist"
 struct cls_lsm_entry

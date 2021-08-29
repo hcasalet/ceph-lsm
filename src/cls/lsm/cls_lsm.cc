@@ -35,7 +35,7 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
 }
 
 /**
- * write data
+ * write data to node
  */ 
 struct int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
@@ -44,7 +44,7 @@ struct int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
     try {
         decode(op, iter);
     } catch (ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: cls_lsm_write_data: failed to decode input data \n");
+        CLS_LOG(1, "ERROR: cls_lsm_write_node: failed to decode input data \n");
         return -EINVAL;
     }
 
@@ -61,6 +61,33 @@ struct int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
 
     // write back node
     return lsm_write_node(hctx, node);
+}
+
+/**
+ *  read data from node
+ */
+static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    auto iter = in->cbegin();
+    cls_lsm_get_entries_op op;
+    try {
+        decode(op, iter);
+    } catch (ceph::buffer::error& err) {
+        CLS_LOG(1, "ERROR: cls_lsm_read_node: failed to decode input data \n");
+        return -EINVAL;
+    }
+
+    cls_lsm_node_head node_head;
+    ret = lsm_read_node_head(hctx, node_head);
+
+    cls_lsm_get_entries_ret op_ret;
+    ret = lsm_get_entries(hctx, op, op_ret, node_head);
+    if (ret < 0) {
+        return ret;
+    }
+
+    encode(op_ret, *out);
+    return 0;
 }
 
 /**
@@ -116,12 +143,14 @@ CLS_INIT(lsm)
     cls_handle_t h_class;
     cls_method_handle_t h_lsm_init;
     cls_method_handle_t h_lsm_write_node;
+    cls_method_handle_t h_lsm_read_node;
     cls_method_handle_t h_lsm_compaction;
 
     cls_register(LSM_CLASS, &h_class)
 
     cls_register_cxx_method(h_class, LSM_INIT, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_init, &h_lsm_init);
     cls_register_cxx_method(h_class, LSM_WRITE_NODE, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_write_node, &h_lsm_write_node);
+    cls_register_cxx_method(h_class, LSM_READ_NODE, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_node, &h_lsm_read_node);
     cls_register_cxx_method(h_class, LSM_COMPACTION, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_compaction, &h_lsm_compaction);
 
     return; 

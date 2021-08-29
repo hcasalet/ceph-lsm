@@ -350,3 +350,16 @@ set_target_properties(cls_test_remote_operations PROPERTIES
   INSTALL_RPATH ""
   CXX_VISIBILITY_PRESET hidden)
 install(TARGETS cls_test_remote_operations DESTINATION ${cls_dir})
+
+# cls_lsm
+set(cls_lsm_srcs 
+  lsm/cls_lsm.cc
+  lsm/cls_lsm_src.cc
+  ${CMAKE_SOURCE_DIR}/src/common/ceph_json.cc)
+add_library(cls_lsm SHARED &{cls_lsm_srcs})
+set_target_properties(cls_lsm PROPERTIES
+  VERSION "1.0.0"
+  SOVERSION "1"
+  INSTALL_RPATH ""
+  CXX_VISIBILITY_PRESET hidden)
+install(TARGETS cls_lsm DESTINATION ${cls_dir})
