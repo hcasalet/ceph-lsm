@@ -66,19 +66,20 @@ struct cls_lsm_append_entries_op {
 WRITE_CLASS_ENCODER(cls_lsm_append_entries_op)
 
 struct cls_lsm_get_entries_op {
-    cls_lsm_marker marker;
+    std::vector<uint64_t> keys;
 
     cls_lsm_get_entries_op() {}
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
-        encode(marker, bl);
+        encode(keys, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
-        decode(marker, bl);
+        decode(keys, bl);
+        DECODE_FINISH(bl);
     }
 };
 WRITE_CLASS_ENCODER(cls_lsm_get_entries_op)
@@ -126,7 +127,7 @@ struct cls_lsm_get_child_object_name_ret {
 
     cls_lsm_get_child_object_name_ret() {}
 
-    void encode (cecph::buffer::list& bl) const {
+    void encode (ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
         encode(child_object_name, bl);
         ENCODE_FINISH(bl);

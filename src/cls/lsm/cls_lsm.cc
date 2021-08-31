@@ -8,7 +8,7 @@
 #include "cls/lsm/cls_lsm_types.h"
 #include "cls/lsm/cls_lsm_const.h"
 #include "cls/lsm/cls_lsm_ops.h"
-#include "cls/lsm/cls_lsr_src.h"
+#include "cls/lsm/cls_lsm_src.h"
 
 using ceph::bufferlist;
 using ceph::decode;
@@ -40,7 +40,7 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
 struct int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     auto iter = in->cbegin();
-    cls_lsm_persist_data_op op;
+    cls_lsm_append_entries_op op;
     try {
         decode(op, iter);
     } catch (ceph::buffer::error& err) {
@@ -48,19 +48,17 @@ struct int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
         return -EINVAL;
     }
 
-    cls_lsm_node node;
-    auto ret = lsm_read_node(hctx, node);
+    cls_lsm_node_head head;
+    auto ret = lsm_read_node_head(hctx, head);
     if (ret < 0) {
         return ret;
     }
 
-    ret = lsm_persist_data(hctx, op, node);
-    if (ret < 0) {
-        return ret;
+    if (head.size + cls_lsm_append_entries_op.bl_data_vec.size() > head.max_capacity) {
+        return lsm_compact_node(hctx, op, head);
+    } else {
+        return lsm_append_entries(hctx, op, head);
     }
-
-    // write back node
-    return lsm_write_node(hctx, node);
 }
 
 /**
@@ -79,6 +77,9 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
 
     cls_lsm_node_head node_head;
     ret = lsm_read_node_head(hctx, node_head);
+    if (ret < 0) {
+        return ret;
+    }
 
     cls_lsm_get_entries_ret op_ret;
     ret = lsm_get_entries(hctx, op, op_ret, node_head);
