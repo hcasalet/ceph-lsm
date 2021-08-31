@@ -167,7 +167,7 @@ int lsm_append_entries(cls_method_context_t hctx, cls_lsm_append_entries_op& op,
     return lsm_write_node_head(hctx, head);
 }
 
-int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_get_entries_ret& op_ret,)
+int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_get_entries_ret& op_ret)
 {
     if (head.entry_start_offset == head.entry_end_offset) {
         CLS_LOG(20, "INFO: lsm_get_entries: node is empty, offset is %u", head.data_end_offset);
@@ -233,65 +233,73 @@ int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_
 
 int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, cls_lsm_node_head& head)
 {
-    std::vector<cls_lsm_entry> all_src;
-    all_src.reserve(op.bl_data_vec.size() + head.size());
-    cls_lsm_get_entries_ret entries_ret;
-    auto ret = lsm_get_entries(hctx, head, entries_ret);
-    all_src.insert(all_src.end(), op.bl_data_vec.begin(), op.bl_data_vec.end());
-    all_src.insert(all_src.end(), entries_ret.entries.begin(), entries_ret.entries.end());
+    auto ret = cls_cxx_scatter_wait_for_completions(hctx);
+    if (ret == -EAGAIN) {
+        std::vector<cls_lsm_entry> all_src;
+        all_src.reserve(op.bl_data_vec.size() + head.size());
+        cls_lsm_get_entries_ret entries_ret;
+        ret = lsm_get_entries(hctx, head, entries_ret);
+        all_src.insert(all_src.end(), op.bl_data_vec.begin(), op.bl_data_vec.end());
+        all_src.insert(all_src.end(), entries_ret.entries.begin(), entries_ret.entries.end());
 
-    uint64_t key_lb = head.key_range.low_bound;
-    uint64_t key_hb = head.key_range.high_bound;
-    uint64_t key_increment = (key_hb - key_lb)/head.naming_map.key_range_pieces + 1;
-    uint64_t cg_size = head.naming_map.clm_group_pieces.size();
+        uint64_t key_lb = head.key_range.low_bound;
+        uint64_t key_hb = head.key_range.high_bound;
+        uint64_t key_increment = (key_hb - key_lb)/head.naming_map.key_range_pieces + 1;
+        uint64_t cg_size = head.naming_map.clm_group_pieces.size();
 
-    // initialize target objects with the keys
-    std::map<uint64_t, std::vector<cls_lsm_entry>> tgt_objs;
-    tgt_objs.reserve(cg_size*head.naming_map.key_range_pieces);
-    for (int i = 0; i < head.naming_map.key_range_pieces; i++) {
-        std::stringstream ss;
-        ss << "/lv-" << (head.level + 1) << "/kr-" << i;
-        for (int j = 0; j < head.naming_map.clm_group_pieces; j++) {
-            ss << "/cg-" << j;
-            tgt_objs.insert(std::pair<std::string, std::vector<cls_lsm_entry> >(ss.str(), std::vector<cls_lsm_entry>()));
-        }
-    }
-
-    // populate target objects with the values
-    for (auto src : all_src) {
-        uint64_t lowbound = key_lb;
+        // initialize target objects with the keys
+        std::map<uint64_t, cls_lsm_append_entries_op> tgt_objs;
+        tgt_objs.reserve(cg_size*head.naming_map.key_range_pieces);
         for (int i = 0; i < head.naming_map.key_range_pieces; i++) {
-            if (src.key >= lowbound && src.key < lowbound + key_increment) {
-                std::vector<cls_lsm_entry> split_data;
-                split_data.reserve(cg_size);
+            std::stringstream ss;
+            ss << "/lv-" << (head.level + 1) << "/kr-" << i;
+            for (int j = 0; j < head.naming_map.clm_group_pieces; j++) {
+                ss << "/cg-" << j;
+                tgt_objs.insert(std::pair<std::string, std::vector<cls_lsm_entry> >(ss.str(), std::vector<cls_lsm_entry>()));
+            }
+        }
 
-                // every split group has the same key
-                for (int j = 0; j < cg_size; j++) {
-                    split_data[j].key = src.key;
-                }
+        // populate target objects with the values
+        for (auto src : all_src) {
+            uint64_t lowbound = key_lb;
+            for (int i = 0; i < head.naming_map.key_range_pieces; i++) {
+                if (src.key >= lowbound && src.key < lowbound + key_increment) {
+                    std::vector<cls_lsm_entry> split_data;
+                    split_data.reserve(cg_size);
 
-                // split value ("columns")
-                for (auto it = src.value.begin(); it != src.value.end(); it++) {
+                    // every split group has the same key
                     for (int j = 0; j < cg_size; j++) {
-                        if (head.naming_map.clm_group_pieces[j].get(it->first)) {
-                            split_data[j].value.insert(std::pair<std::string, ceph::buffer::list>(it->first, it->second);
+                        split_data[j].key = src.key;
+                    }
+
+                    // split value ("columns")
+                    for (auto it = src.value.begin(); it != src.value.end(); it++) {
+                        for (int j = 0; j < cg_size; j++) {
+                            if (head.naming_map.clm_group_pieces[j].get(it->first)) {
+                                split_data[j].value.insert(std::pair<std::string, ceph::buffer::list>(it->first, it->second);
+                            }
                         }
                     }
-                }
 
-                // place the groups in target objects
-                for (int j = 0; j < cg_size; j++) {
-                    std::stringstream ss;
-                    ss << "/lv-" << (head.level + 1) << "/kr-" << i << "/cg-" << j;
-                    tgt_objs[ss.str()].push_back(split_data[j]);
+                    // place the groups in target objects
+                    for (int j = 0; j < cg_size; j++) {
+                        std::stringstream ss;
+                        ss << "/lv-" << (head.level + 1) << "/kr-" << i << "/cg-" << j;
+                        tgt_objs[ss.str()].bl_data_vec.push_back(split_data[j]);
+                    }
+                    break;
                 }
-                break;
+                lowbound += key_increment;
             }
-            lowbound += key_increment;
+        }
+
+        // remote write to child objects
+        ret = cls_cxx_scatter(hctx, tgt_objs, pool, "cls_lsm", "cls_lsm_write_node", *in);
+    } else {
+        if (ret != 0) {
+            CLS_ERR("%s: compaction failed. error=%d", __PRETTY_FUNCTION__, ret);
         }
     }
-
-    ret = cls_cxx_scatter(hctx, tgt_objs, pool, "cls_lsm", "cls_lsm_write_node", *in);
 
     return 0; 
 }
