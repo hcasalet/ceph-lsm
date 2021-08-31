@@ -4,6 +4,6 @@
 #define LSM_CLASS "lsm"
 #define LSM_INIT  "lsm_init"
 #define LSM_WRITE_NODE "lsm_write_node"
-#define LSM_COMPACTION "lsm_compaction"
+#define LSM_READ_NODE "lsm_read_node"
 
 #endif

@@ -11,10 +11,9 @@ struct cls_lsm_init_op {
     cls_lsm_key_range key_range;
     uint64_t max_capacity;
     uint64_t size;
-    uint64_t data_start_offset;
-    uint64_t data_end_offset;
+    uint64_t entry_start_offset;
+    uint64_t entry_end_offset;
     cls_lsm_child_object_naming_map naming_map;
-    std::vector<cls_lsm_entry> object_data;
 
     cls_lsm_init_op() {}
 
@@ -24,10 +23,9 @@ struct cls_lsm_init_op {
         encode(key_range, bl);
         encode(max_capacity, bl);
         encode(size, bl);
-        encode(data_start_offset, bl);
-        encode(data_end_offset, bl);
+        encode(entry_start_offset, bl);
+        encode(entry_end_offset, bl);
         encode(naming_map, bl);
-        encode(object_data, bl);
         ENCODE_FINISH(bl);
     }
 
@@ -37,10 +35,9 @@ struct cls_lsm_init_op {
         decode(key_range, bl);
         decode(max_capacity, bl);
         decode(size, bl);
-        decode(data_start_offset, bl);
-        decode(data_end_offset, bl);
+        decode(entry_start_offset, bl);
+        decode(entry_end_offset, bl);
         decode(naming_map, bl);
-        decode(object_data, bl);
         DECODE_FINISH(bl);
     }
 };

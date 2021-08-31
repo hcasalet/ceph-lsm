@@ -98,7 +98,7 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op)
 {
     // check if node was already initialized
     cls_lsm_node_head head;
-    int ret = lsm_read_node(hctx, head);
+    int ret = lsm_read_node_head(hctx, head);
     if (ret == 0) {
         return -EEXIST;
     }
@@ -123,7 +123,7 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op)
     uint64_t head_len = bl_head.length();
 
     head.entry_start_offset = head_len + LSM_NODE_OVERHEAD * 4 + LSM_PER_KEY_OVERHEAD * head.max_capacity;
-    head.entry_end_offset = head.entry_start_offset
+    head.entry_end_offset = head.entry_start_offset;
 
     CLS_LOG(20, "INFO: lsm_init level %u", head.level);
     CLS_LOG(20, "INFO: lsm_init key range (%lu, %lu)", head.key_range.low_bound, head.key_range.high_bound);
@@ -141,16 +141,16 @@ int lsm_append_entries(cls_method_context_t hctx, cls_lsm_append_entries_op& op,
 
     // update start_offset
     if (head.entry_start_offset == 0) {
-        head.entry_start_offset = op.entry_start_offset
+        head.entry_start_offset = op.entry_start_offset;
     }
 
     for (auto& bl_data : op.bl_data_vec) {
         bufferlist bl;
         uint16_t entry_start = LSM_ENTRY_START;
         encode(entry_start, bl);
-        uint64_t data_size = bl_data.length();
+        uint64_t data_size = bl_data.size();
         encode(data_size, bl);
-        bl.claim_append(bl_data);
+        encode(bl_data, bl);
 
         CLS_LOG(10, "INFO: lsm_append_entries: total entry size to be written is %u and data size is %lu", bl.length(), data_size);
 

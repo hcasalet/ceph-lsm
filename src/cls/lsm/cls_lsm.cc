@@ -26,7 +26,7 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
     cls_lsm_init_op op;
     try {
         decode(op, in_iter);
-    } catch (ceph::list::error& err) {
+    } catch (ceph::buffer::error& err) {
         CLS_LOG(1, "ERROR: cls_lsm_init_op: failed to decdoe entry\n");
         return -EINVAL;
     }
@@ -54,7 +54,7 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
         return ret;
     }
 
-    if (head.size + cls_lsm_append_entries_op.bl_data_vec.size() > head.max_capacity) {
+    if (head.size + op.bl_data_vec.size() > head.max_capacity) {
         return lsm_compact_node(hctx, op, head);
     } else {
         return lsm_append_entries(hctx, op, head);
@@ -100,7 +100,7 @@ CLS_INIT(lsm)
     cls_method_handle_t h_lsm_write_node;
     cls_method_handle_t h_lsm_read_node;
 
-    cls_register(LSM_CLASS, &h_class)
+    cls_register(LSM_CLASS, &h_class);
 
     cls_register_cxx_method(h_class, LSM_INIT, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_init, &h_lsm_init);
     cls_register_cxx_method(h_class, LSM_WRITE_NODE, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_write_node, &h_lsm_write_node);
