@@ -290,6 +290,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
         }
 
         // remote write to child objects
+        bufferlist in; 
         ret = cls_cxx_scatter(hctx, tgt_objs, pool, "cls_lsm", "cls_lsm_write_node", *in);
     } else {
         if (ret != 0) {
@@ -313,12 +314,12 @@ int lsm_get_child_object_names(cls_method_context_t hctx, cls_lsm_get_child_obje
     for (uint32_t i = 0; i < node.naming_map.key_ranges; i++) {
         for (uint32_t j = 0; j < node.naming_map.clm_groups.size(); j++) {
             std::stringstream ss;
-            ss << node.object_name << "/lv" << node.level+1 << "-kr" << std::to_string(i) << "-cg" << std::to_string(j);
-            children_objects.push_back(ss.str())
+            ss << node.object_name << "/lv" << std::to_string(node.level+1) << "-kr" << std::to_string(i) << "-cg" << std::to_string(j);
+            children_objects.push_back(ss.str());
         }
     }
 
-    opt_ret.child_object_names = children_objects;
+    op_ret.child_object_names = children_objects;
 
     CLS_LOG(20, "INFO: lsm_get_child_object_names: size of child objects: %lu", opt_ret.child_object_names.size());
     
