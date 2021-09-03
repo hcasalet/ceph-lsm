@@ -167,7 +167,7 @@ int lsm_append_entries(cls_method_context_t hctx, cls_lsm_append_entries_op& op,
 int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_get_entries_ret& op_ret)
 {
     if (head.entry_start_offset == head.entry_end_offset) {
-        CLS_LOG(20, "INFO: lsm_get_entries: node is empty, offset is %u", head.entry_end_offset);
+        CLS_LOG(20, "INFO: lsm_get_entries: node is empty, offset is %lu", head.entry_end_offset);
         return 0;
     }
 
@@ -271,7 +271,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
                     // split value ("columns")
                     for (auto it = src.value.begin(); it != src.value.end(); it++) {
                         for (uint32_t j = 0; j < cg_size; j++) {
-                            if (head.naming_map.clm_groups[j].get(it->first)) {
+                            if (head.naming_map.clm_groups[j].contains(it->first)) {
                                 split_data[j].value.insert(std::pair<std::string, ceph::buffer::list>(it->first, it->second);
                             }
                         }
