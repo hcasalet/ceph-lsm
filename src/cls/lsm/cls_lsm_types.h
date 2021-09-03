@@ -2,13 +2,17 @@
 #define CEPH_CLS_LSM_TYPES_H
 
 #include <errno.h>
+#include <bitset>
 #include "include/types.h"
 #include "objclass/objclass.h"
+#include "cls/lsm/cls_lsm_bloomfilter.h"
 
 constexpr unsigned int LSM_NODE_START = 0xDEAD;
 constexpr unsigned int LSM_NODE_OVERHEAD = sizeof(uint16_t) + sizeof(uint64_t);
 constexpr unsigned int LSM_ENTRY_START = 0xBEEF;
 constexpr unsigned int LSM_PER_KEY_OVERHEAD = sizeof(uint64_t) * 3;
+constexpr unsigned int BLOOMFILTER_STORE_SIZE = 65536;
+constexpr unsigned int CHUNK_SIZE = 4096;
 
 // key range
 struct cls_lsm_key_range
@@ -121,14 +125,15 @@ WRITE_CLASS_ENCODER(cls_lsm_entry)
 // lsm tree node
 struct cls_lsm_node_head
 {              
-    uint8_t level;                                    // level of the tree that the node is on
-    cls_lsm_key_range key_range;                      // range of keys stored in this object
-    uint64_t max_capacity;                            // max number of objects that can be held
-    uint64_t size;                                    // number of objects holding already
-    uint64_t entry_start_offset;                       // marker where data starts
-    uint64_t entry_end_offset;                         // marker where data ends
-    cls_lsm_child_object_naming_map naming_map;       // child node naming map
-    std::map<std::string, cls_lsm_marker> entry_map;  // entry index map
+    uint8_t level;                                          // level of the tree that the node is on
+    cls_lsm_key_range key_range;                            // range of keys stored in this object
+    uint64_t max_capacity;                                  // max number of objects that can be held
+    uint64_t size;                                          // number of objects holding already
+    uint64_t entry_start_offset;                            // marker where data starts
+    uint64_t entry_end_offset;                              // marker where data ends
+    std::bitset<BLOOMFILTER_STORE_SIZE> bloomfilter_store;  // store for bloomfilter
+    cls_lsm_child_object_naming_map naming_map;             // child node naming map
+    std::map<std::string, cls_lsm_marker> entry_map;        // entry index map
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
@@ -138,6 +143,7 @@ struct cls_lsm_node_head
         encode(size, bl);
         encode(entry_start_offset, bl);
         encode(entry_end_offset, bl);
+        encode(bloomfilter_store, bl);
         encode(naming_map, bl);
         encode(entry_map, bl);
         ENCODE_FINISH(bl);
@@ -151,6 +157,7 @@ struct cls_lsm_node_head
         decode(size, bl);
         decode(entry_start_offset, bl);
         decode(entry_end_offset, bl);
+        decode(bloomfilter_store, bl);
         decode(naming_map, bl);
         decode(entry_map, bl);
         DECODE_FINISH(bl);

@@ -3,6 +3,7 @@
 #include "objclass/objclass.h"
 #include "cls/lsm/cls_lsm_types.h"
 #include "cls/lsm/cls_lsm_ops.h"
+#include "cls/lsm/cls_lsm_bloomfilter.h"
 #include "cls/lsm/cls_lsm_src.h"
 
 using ceph::bufferlist;
@@ -35,10 +36,10 @@ int lsm_write_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 
 int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 {
-    uint64_t chunk_size = 1024, start_offset = 0;
+    uint64_t read_size = CHUNK_SIZE, start_offset = 0;
 
     bufferlist bl_node;
-    const auto ret = cls_cxx_read(hctx, start_offset, chunk_size, &bl_node);
+    const auto ret = cls_cxx_read(hctx, start_offset, read_size, &bl_node);
     if (ret < 0) {
         CLS_LOG(5, "ERROR: lsm_read_node: failed read lsm node");
         return ret;
@@ -72,11 +73,11 @@ int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
         return -EINVAL;
     }
 
-    if (encoded_len > (chunk_size - LSM_NODE_OVERHEAD)) {
-        start_offset = chunk_size;
-        chunk_size = encoded_len - (chunk_size - LSM_NODE_OVERHEAD);
+    if (encoded_len > (read_size - LSM_NODE_OVERHEAD)) {
+        start_offset = read_size;
+        read_size = encoded_len - (read_size - LSM_NODE_OVERHEAD);
         bufferlist bl_remaining_node;
-        const auto ret = cls_cxx_read2(hctx, start_offset, chunk_size, &bl_remaining_node, CEPH_OSD_OP_FLAG_FADVISE_SEQUENTIAL);
+        const auto ret = cls_cxx_read2(hctx, start_offset, read_size, &bl_remaining_node, CEPH_OSD_OP_FLAG_FADVISE_SEQUENTIAL);
         if (ret < 0) {
             CLS_LOG(5, "ERROR: lsm_read_node: failed to read the remaining part of the node");
             return ret;
@@ -244,25 +245,25 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
 
         uint64_t key_lb = head.key_range.low_bound;
         uint64_t key_hb = head.key_range.high_bound;
-        uint64_t key_increment = (key_hb - key_lb)/head.naming_map.key_range_pieces + 1;
-        uint64_t cg_size = head.naming_map.clm_group_pieces.size();
+        uint64_t key_increment = (key_hb - key_lb)/head.naming_map.key_ranges + 1;
+        uint64_t cg_size = head.naming_map.clm_groups.size();
 
         // initialize target objects with the keys
-        std::map<uint64_t, cls_lsm_append_entries_op> tgt_objs;
-        tgt_objs.reserve(cg_size*head.naming_map.key_range_pieces);
-        for (int i = 0; i < head.naming_map.key_range_pieces; i++) {
+        std::map<std::string, cls_lsm_append_entries_op> tgt_objs;
+        tgt_objs.reserve(cg_size*head.naming_map.key_ranges);
+        for (int i = 0; i < head.naming_map.key_ranges; i++) {
             std::stringstream ss;
             ss << "/lv-" << (head.level + 1) << "/kr-" << i;
-            for (int j = 0; j < head.naming_map.clm_group_pieces; j++) {
+            for (int j = 0; j < head.naming_map.clm_groups; j++) {
                 ss << "/cg-" << j;
-                tgt_objs.insert(std::pair<std::string, std::vector<cls_lsm_entry> >(ss.str(), std::vector<cls_lsm_entry>()));
+                tgt_objs.insert(std::pair<std::string, cls_lsm_append_entries_op>(ss.str(), cls_lsm_append_entries_op()));
             }
         }
 
         // populate target objects with the values
         for (auto src : all_src) {
             uint64_t lowbound = key_lb;
-            for (int i = 0; i < head.naming_map.key_range_pieces; i++) {
+            for (int i = 0; i < head.naming_map.key_ranges; i++) {
                 if (src.key >= lowbound && src.key < lowbound + key_increment) {
                     std::vector<cls_lsm_entry> split_data;
                     split_data.reserve(cg_size);
@@ -275,7 +276,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
                     // split value ("columns")
                     for (auto it = src.value.begin(); it != src.value.end(); it++) {
                         for (int j = 0; j < cg_size; j++) {
-                            if (head.naming_map.clm_group_pieces[j].get(it->first)) {
+                            if (head.naming_map.clm_groups[j].get(it->first)) {
                                 split_data[j].value.insert(std::pair<std::string, ceph::buffer::list>(it->first, it->second);
                             }
                         }
@@ -307,15 +308,15 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
 int lsm_get_child_object_names(cls_method_context_t hctx, cls_lsm_get_child_object_names_ret& op_ret)
 {
     // get the node
-    cls_lsm_node node;
-    int ret = lsm_read_node(hctx, node);
+    cls_lsm_node_head node;
+    int ret = lsm_read_node_head(hctx, node);
     if (ret < 0) {
         return ret;
     }
     
     std::vector<std::string> children_objects;
-    for (int i = 0; i < node.naming_scheme.key_range_pieces; i++) {
-        for (int j = 0; j < node.naming_scheme.clm_group_pieces.size(); j++) {
+    for (int i = 0; i < node.naming_map.key_ranges; i++) {
+        for (int j = 0; j < node.naming_map.clm_groups.size(); j++) {
             std::stringstream ss;
             ss << node.object_name << "/lv" << node.level+1 << "-kr" << std::to_string(i) << "-cg" << std::to_string(j);
             children_objects.push_back(ss.str())

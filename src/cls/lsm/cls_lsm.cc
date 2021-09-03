@@ -1,6 +1,11 @@
 //
 // Created by Holly Casaletto on 7/29/21.
 //
+
+// TO-DO: 
+// 1. cls_lsm_init_tree
+// 2. bloom filter
+
 #include "include/types.h"
 #include <errno.h>
 
