@@ -122,7 +122,8 @@ WRITE_CLASS_ENCODER(cls_lsm_entry)
 
 // lsm tree node
 struct cls_lsm_node_head
-{              
+{          
+    std::string pool;                                    // pool in which node resides in    
     uint8_t level;                                       // level of the tree that the node is on
     cls_lsm_key_range key_range;                         // range of keys stored in this object
     uint64_t max_capacity;                               // max number of objects that can be held
@@ -135,6 +136,7 @@ struct cls_lsm_node_head
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
+        encode(pool, bl);
         encode(level, bl);
         encode(key_range, bl);
         encode(max_capacity, bl);
@@ -149,6 +151,7 @@ struct cls_lsm_node_head
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
+        decode(pool, bl);
         decode(level, bl);
         decode(key_range, bl);
         decode(max_capacity, bl);
