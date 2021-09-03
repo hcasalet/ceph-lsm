@@ -271,7 +271,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
                     // split value ("columns")
                     for (auto it = src.value.begin(); it != src.value.end(); it++) {
                         for (uint32_t j = 0; j < cg_size; j++) {
-                            if (head.naming_map.clm_groups[j].columns.contains(it->first)) {
+                            if (head.naming_map.clm_groups[j].columns.find(it->first) != head.naming_map.clm_groups[j].columns.end()) {
                                 split_data[j].value.insert(std::pair<std::string, ceph::buffer::list>(it->first, it->second);
                             }
                         }
@@ -314,14 +314,14 @@ int lsm_get_child_object_names(cls_method_context_t hctx, cls_lsm_get_child_obje
     for (uint32_t i = 0; i < node.naming_map.key_ranges; i++) {
         for (uint32_t j = 0; j < node.naming_map.clm_groups.size(); j++) {
             std::stringstream ss;
-            ss << node.object_name << "/lv" << std::to_string(node.level+1) << "-kr" << std::to_string(i) << "-cg" << std::to_string(j);
+            ss << "/lv" << std::to_string(node.level+1) << "-kr" << std::to_string(i) << "-cg" << std::to_string(j);
             children_objects.push_back(ss.str());
         }
     }
 
     op_ret.child_object_names = children_objects;
 
-    CLS_LOG(20, "INFO: lsm_get_child_object_names: size of child objects: %lu", opt_ret.child_object_names.size());
+    CLS_LOG(20, "INFO: lsm_get_child_object_names: size of child objects: %lu", op_ret.child_object_names.size());
     
     return 0;
 }

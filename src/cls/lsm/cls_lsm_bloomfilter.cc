@@ -9,7 +9,7 @@
 int lsm_bloomfilter_insert(cls_lsm_node_head& head, const std::string& object)
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);
-	hash(object, MD5_hash_result_buffer);
+	lsm_bloomfilter_hash(object, MD5_hash_result_buffer);
 	const uint16_t* const object_hashes = reinterpret_cast<const uint16_t * const>(MD5_hash_result_buffer.get());
 
 	for (size_t i = 0; i < HASH_FUNCTION_COUNT; i++)
@@ -31,14 +31,15 @@ int lsm_bloomfilter_clear(cls_lsm_node_head& head)
 bool lsm_bloomfilter_contains(cls_lsm_node_head& head, const std::string& object)
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);
-	hash(object, MD5_hash_result_buffer);
+	lsm_bloomfilter_hash(object, MD5_hash_result_buffer);
 	const uint16_t* const object_hashes = reinterpret_cast<const uint16_t * const>(MD5_hash_result_buffer.get());		
 
 	for (size_t i = 0; i < HASH_FUNCTION_COUNT; i++)
 	{
 		const uint16_t index_to_get = object_hashes[i];
-		if (!bloomfilter_store[index_to_get]) return false;
+		if (!head.bloomfilter_store[index_to_get]) return false;
 	}
+
 	return true;
 }
 
