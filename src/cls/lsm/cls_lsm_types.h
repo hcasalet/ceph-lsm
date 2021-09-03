@@ -129,7 +129,7 @@ struct cls_lsm_node_head
     uint64_t size;                                       // number of objects holding already
     uint64_t entry_start_offset;                         // marker where data starts
     uint64_t entry_end_offset;                           // marker where data ends
-    bool     bloomfilter_store[BLOOMFILTER_STORE_SIZE];  // store for bloomfilter
+    std::vector<bool>  bloomfilter_store;                // store for bloomfilter
     cls_lsm_child_object_naming_map naming_map;          // child node naming map
     std::map<std::string, cls_lsm_marker> entry_map;     // entry index map
 
