@@ -23,7 +23,7 @@ int insert(cls_lsm_node_head& head, const std::string& object)
 
 int clear(cls_lsm_node_head& head)
 {
-	head.bloomfilter_store.reset();
+	head.bloomfilter_store.clear();
 
     return 0;
 }
@@ -37,7 +37,7 @@ bool contains(cls_lsm_node_head& head, const std::string& object)
 	for (size_t i = 0; i < HASH_FUNCTION_COUNT; i++)
 	{
 		const uint16_t index_to_get = object_hashes[i];
-		if (!bloomfilter_store_[index_to_get]) return false;
+		if (!bloomfilter_store[index_to_get]) return false;
 	}
 	return true;
 }
