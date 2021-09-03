@@ -3,10 +3,11 @@
 #include <bitset>
 #include <memory>
 
+#include "objclass/objclass.h"
 #include "cls/lsm/cls_lsm_types.h"
 #include "cls/lsm/cls_lsm_bloomfilter.h"
 
-void insert(cls_lsm_node_head head, const std::string& object)
+int insert(cls_lsm_node_head& head, const std::string& object)
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);
 	hash(object, MD5_hash_result_buffer);
@@ -17,14 +18,18 @@ void insert(cls_lsm_node_head head, const std::string& object)
 		const uint16_t index_to_set = object_hashes[i];
 		head.bloomfilter_store[index_to_set] = true;
 	}
+
+    return 0;
 }
 
-void clear(cls_lsm_node_head head)
+int clear(cls_lsm_node_head& head)
 {
 	head.bloomfilter_store.reset();
+
+    return 0;
 }
 
-bool contains(cls_lsm_node_head head, const std::string& object) const
+bool contains(cls_lsm_node_head& head, const std::string& object) const
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);
 	hash(object, MD5_hash_result_buffer);
@@ -38,9 +43,11 @@ bool contains(cls_lsm_node_head head, const std::string& object) const
 	return true;
 }
 
-static void hash(const std::string& val, const std::unique_ptr<unsigned char[]> MD5_hash_result_buffer) const
+static int hash(const std::string& val, const std::unique_ptr<unsigned char[]> MD5_hash_result_buffer) const
 {
 	const unsigned char* const md5_input_val = reinterpret_cast<const unsigned char*>(val.data());
 	const size_t md5_input_length = val.length();
 	MD5(md5_input_val, md5_input_length, MD5_hash_result_buffer.get());
+
+    return 0;
 }
