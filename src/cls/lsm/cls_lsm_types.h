@@ -2,7 +2,6 @@
 #define CEPH_CLS_LSM_TYPES_H
 
 #include <errno.h>
-#include <bitset>
 #include "include/types.h"
 #include "objclass/objclass.h"
 
@@ -124,15 +123,15 @@ WRITE_CLASS_ENCODER(cls_lsm_entry)
 // lsm tree node
 struct cls_lsm_node_head
 {              
-    uint8_t level;                                          // level of the tree that the node is on
-    cls_lsm_key_range key_range;                            // range of keys stored in this object
-    uint64_t max_capacity;                                  // max number of objects that can be held
-    uint64_t size;                                          // number of objects holding already
-    uint64_t entry_start_offset;                            // marker where data starts
-    uint64_t entry_end_offset;                              // marker where data ends
-    std::bitset<BLOOMFILTER_STORE_SIZE> bloomfilter_store;  // store for bloomfilter
-    cls_lsm_child_object_naming_map naming_map;             // child node naming map
-    std::map<std::string, cls_lsm_marker> entry_map;        // entry index map
+    uint8_t level;                                       // level of the tree that the node is on
+    cls_lsm_key_range key_range;                         // range of keys stored in this object
+    uint64_t max_capacity;                               // max number of objects that can be held
+    uint64_t size;                                       // number of objects holding already
+    uint64_t entry_start_offset;                         // marker where data starts
+    uint64_t entry_end_offset;                           // marker where data ends
+    bool     bloomfilter_store[BLOOMFILTER_STORE_SIZE];  // store for bloomfilter
+    cls_lsm_child_object_naming_map naming_map;          // child node naming map
+    std::map<std::string, cls_lsm_marker> entry_map;     // entry index map
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);

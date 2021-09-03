@@ -1,6 +1,5 @@
 #include <openssl/md5.h>
 
-#include <bitset>
 #include <memory>
 
 #include "objclass/objclass.h"
