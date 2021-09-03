@@ -116,7 +116,6 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op)
     head.entry_start_offset = op.entry_start_offset;
     head.entry_end_offset = op.entry_end_offset;
     head.naming_map = op.naming_map;
-    head.entry_map = op.entry_map;
 
     // get the length of head to initialize start_offset and end_offset
     bufferlist bl_head;
@@ -140,28 +139,25 @@ int lsm_append_entries(cls_method_context_t hctx, cls_lsm_append_entries_op& op,
         return -ENOSPC;
     }
 
-    // update start_offset
-    if (head.entry_start_offset == 0) {
-        head.entry_start_offset = op.entry_start_offset;
-    }
-
     for (auto& bl_data : op.bl_data_vec) {
         bufferlist bl;
         uint16_t entry_start = LSM_ENTRY_START;
         encode(entry_start, bl);
-        uint64_t data_size = bl_data.size();
+        bufferlist bl_data_entry;
+        encode(bl_data, bl_data_entry);
+        uint64_t data_size = bl_data_entry.size();
         encode(data_size, bl);
-        encode(bl_data, bl);
+        bl.claim_append(bl_data_entry);
 
         CLS_LOG(10, "INFO: lsm_append_entries: total entry size to be written is %u and data size is %lu", bl.length(), data_size);
 
-        auto ret = cls_cxx_write2(hctx, head.data_end_offset, bl.length(), &bl, CEPH_OSD_OP_FLAG_FADVISE_SEQUENTIAL);
+        auto ret = cls_cxx_write2(hctx, head.entry_end_offset, bl.length(), &bl, CEPH_OSD_OP_FLAG_FADVISE_SEQUENTIAL);
         if (ret < 0) {
             return ret;
         }
         cls_lsm_marker marker{head.data_end_offset, bl.length()};
         head.entry_map.insert(std::pair<std::string, cls_lsm_marker>(bl_data.key, marker));
-        head.data_end_offset += bl.length();
+        head.entry_end_offset += bl.length();
         head.size++; 
     }
 
@@ -237,7 +233,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
     auto ret = cls_cxx_scatter_wait_for_completions(hctx);
     if (ret == -EAGAIN) {
         std::vector<cls_lsm_entry> all_src;
-        all_src.reserve(op.bl_data_vec.size() + head.size());
+        all_src.reserve(op.bl_data_vec.size() + head.size);
         cls_lsm_get_entries_ret entries_ret;
         ret = lsm_get_entries(hctx, head, entries_ret);
         all_src.insert(all_src.end(), op.bl_data_vec.begin(), op.bl_data_vec.end());

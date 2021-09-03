@@ -28,7 +28,7 @@ int clear(cls_lsm_node_head& head)
     return 0;
 }
 
-bool contains(cls_lsm_node_head& head, const std::string& object) const
+bool contains(cls_lsm_node_head& head, const std::string& object)
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);
 	hash(object, MD5_hash_result_buffer);
@@ -42,7 +42,7 @@ bool contains(cls_lsm_node_head& head, const std::string& object) const
 	return true;
 }
 
-static int hash(const std::string& val, const std::unique_ptr<unsigned char[]> MD5_hash_result_buffer) const
+static int hash(const std::string& val, const std::unique_ptr<unsigned char[]> MD5_hash_result_buffer)
 {
 	const unsigned char* const md5_input_val = reinterpret_cast<const unsigned char*>(val.data());
 	const size_t md5_input_length = val.length();
