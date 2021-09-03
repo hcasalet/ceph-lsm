@@ -5,7 +5,6 @@
 #include <bitset>
 #include "include/types.h"
 #include "objclass/objclass.h"
-#include "cls/lsm/cls_lsm_bloomfilter.h"
 
 constexpr unsigned int LSM_NODE_START = 0xDEAD;
 constexpr unsigned int LSM_NODE_OVERHEAD = sizeof(uint16_t) + sizeof(uint64_t);
