@@ -291,7 +291,14 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
 
         // remote write to child objects
         bufferlist *in; 
-        ret = cls_cxx_scatter(hctx, tgt_objs, head.pool, "cls_lsm", "cls_lsm_write_node", *in);
+        std::map<std::string, bufferlist> target_objects;
+        for (auto tgt_obj : tgt_objs) {
+            bufferlist bl_obj;
+            encode(tgt_obj.second, bl_obj);
+            target_objects.insert(std::pair<std::string, bufferlist>(tgt_obj.first, bl_obj));
+        }
+
+        ret = cls_cxx_scatter(hctx, target_objects, head.pool, "cls_lsm", "cls_lsm_write_node", *in);
     } else {
         if (ret != 0) {
             CLS_ERR("%s: compaction failed. error=%d", __PRETTY_FUNCTION__, ret);

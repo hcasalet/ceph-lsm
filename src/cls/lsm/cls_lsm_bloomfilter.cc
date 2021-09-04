@@ -43,7 +43,7 @@ bool lsm_bloomfilter_contains(cls_lsm_node_head& head, const std::string& object
 	return true;
 }
 
-static int lsm_bloomfilter_hash(const std::string& val, std::unique_ptr<unsigned char[]> MD5_hash_result_buffer)
+int lsm_bloomfilter_hash(const std::string& val, std::unique_ptr<unsigned char[]> MD5_hash_result_buffer)
 {
 	const unsigned char* const md5_input_val = reinterpret_cast<const unsigned char*>(val.data());
 	const size_t md5_input_length = val.length();
