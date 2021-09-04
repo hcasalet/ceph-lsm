@@ -272,7 +272,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
                     for (auto it = src.value.begin(); it != src.value.end(); it++) {
                         for (uint32_t j = 0; j < cg_size; j++) {
                             if (head.naming_map.clm_groups[j].columns.find(it->first) != head.naming_map.clm_groups[j].columns.end()) {
-                                split_data[j].value.insert(std::pair<std::string, ceph::buffer::list>(it->first, it->second);
+                                split_data[j].value.insert(std::pair<std::string, ceph::buffer::list>(it->first, it->second));
                             }
                         }
                     }
@@ -290,7 +290,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
         }
 
         // remote write to child objects
-        bufferlist in; 
+        bufferlist *in; 
         ret = cls_cxx_scatter(hctx, tgt_objs, head.pool, "cls_lsm", "cls_lsm_write_node", *in);
     } else {
         if (ret != 0) {
