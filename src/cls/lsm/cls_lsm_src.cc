@@ -232,6 +232,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
 {
     auto ret = cls_cxx_scatter_wait_for_completions(hctx);
     if (ret == -EAGAIN) {
+        std::map<std::string, cls_lsm_append_entries_op> tgt_objs;
         std::vector<cls_lsm_entry> all_src;
         all_src.reserve(op.bl_data_vec.size() + head.size);
         cls_lsm_get_entries_ret entries_ret;
@@ -245,7 +246,6 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
         uint64_t cg_size = head.naming_map.clm_groups.size();
 
         // initialize target objects with the keys
-        std::map<std::string, cls_lsm_append_entries_op> tgt_objs;
         for (uint32_t i = 0; i < head.naming_map.key_ranges; i++) {
             std::stringstream ss;
             ss << "/lv-" << (head.level + 1) << "/kr-" << i;
