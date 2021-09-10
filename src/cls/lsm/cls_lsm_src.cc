@@ -10,7 +10,6 @@ using ceph::bufferlist;
 using ceph::decode;
 using ceph::encode;
 
-// should we define the max size in cls_lsm_node?
 int lsm_write_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 {
     bufferlist bl;
