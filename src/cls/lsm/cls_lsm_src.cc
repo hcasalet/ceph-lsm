@@ -10,29 +10,74 @@ using ceph::bufferlist;
 using ceph::decode;
 using ceph::encode;
 
-int lsm_write_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
+/**
+ * read in the tree info (read from level-0 root node)
+ */
+int lsm_read_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
+{
+    uint64_t read_size = CHUNK_SIZE, start_offset = 0;
+
+    bufferlist bl_tree;
+    const auto ret = cls_cxx_read(hctx, start_offset, read_size, &bl_tree);
+
+    if (ret < 0) {
+        CLS_LOG(5, "ERROR: lsm_read_tree_config: failed read lsm tree config");
+        return ret;
+    }
+    if (ret == 0) {
+        CLS_LOG(20, "INFO: lsm_read_tree_config: tree not initialized yet");
+        return -EINVAL;
+    }
+
+    // Process the chunk of data read
+    auto it = bl_tree.cbegin();
+
+    // check tree start
+    uint16_t tree_start;
+    try {
+        decode(tree_start, it);
+    } catch (const ceph::buffer::error& err) {
+        CLS_LOG(0, "ERROR: lsm_read_tree_config: failed to decode tree start");
+        return -EINVAL;
+    }
+    if (node_start != LSM_TREE_START) {
+        CLS_LOG(0, "ERROR: lsm_read_tree_config: invalid tree start");
+        return -EINVAL;
+    }
+
+    // get tree config
+    try {
+        decode(tree, it);
+    } catch (const ceph::buffer::error& err) {
+        CLS_LOG(0, "ERROR: lsm_read_node: failed to decode node: %s", err.what());
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+/**
+ * write the tree root node (level-0 node)
+ */
+int lsm_write_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
 {
     bufferlist bl;
-    uint16_t node_start = LSM_NODE_START;
-    encode(node_start, bl);
-
-    bufferlist bl_head;
-    encode(node_head, bl_head);
-
-    uint64_t encoded_len = bl_head.length();
-    encode(encoded_len, bl);
-    
-    bl.claim_append(bl_head);
+    uint16_t tree_start = LSM_TREE_START;
+    encode(tree_start, bl);
+    encode(tree, bl);
 
     int ret = cls_cxx_write2(hctx, 0, bl.length(), &bl, CEPH_OSD_OP_FLAG_FADVISE_WILLNEED);
     if (ret < 0) {
-        CLS_LOG(5, "ERROR: lsm_write_node: failed to write lsm node");
+        CLS_LOG(5, "ERROR: lsm_write_tree_config: failed to write lsm tree");
         return ret;
     }
 
     return 0;
 }
 
+/**
+ * read header of nodes starting from level-1 and higher
+ */
 int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 {
     uint64_t read_size = CHUNK_SIZE, start_offset = 0;
@@ -94,38 +139,114 @@ int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
     return 0;
 }
 
-int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op)
+int lsm_write_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 {
-    // check if node was already initialized
-    cls_lsm_node_head head;
-    int ret = lsm_read_node_head(hctx, head);
+    bufferlist bl;
+    uint16_t node_start = LSM_NODE_START;
+    encode(node_start, bl);
+
+    bufferlist bl_head;
+    encode(node_head, bl_head);
+
+    uint64_t encoded_len = bl_head.length();
+    encode(encoded_len, bl);
+
+    bl.claim_append(bl_head);
+
+    int ret = cls_cxx_write2(hctx, 0, bl.length(), &bl, CEPH_OSD_OP_FLAG_FADVISE_WILLNEED);
+    if (ret < 0) {
+        CLS_LOG(5, "ERROR: lsm_write_node: failed to write lsm node");
+        return ret;
+    }
+
+    return 0;
+}
+
+/*
+ * initializes only the level-1 node (total == fan_out)
+ */
+int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op, int fan_out)
+{
+    // check if the tree was already initialized
+    cls_lsm_tree_config tree;
+    auto ret = lsm_read_tree_config(hctx, tree);
     if (ret == 0) {
+        CLS_LOG(5, "ERROR: tree was already initialized before")
         return -EEXIST;
     }
 
     // bail out for other errors
     if (ret < 0 && ret != -EINVAL) {
+        CLS_LOG(5, "ERROR: faild to initialize lsm tree")
         return ret;
     }
 
-    head.level = op.level;
-    head.key_range = op.key_range;
-    head.max_capacity = op.max_capacity;
-    head.size = op.size;
-    head.entry_start_offset = op.entry_start_offset;
-    head.entry_end_offset = op.entry_end_offset;
-    head.naming_map = op.naming_map;
+    tree.pool = op.pool;
+    tree.my_object_id = "/lsmtree-" + op.app_name + "-lv0";
+    tree.levels = op.levels;
+    tree.key_range = op.key_range;
+    tree.total_columns = op.total_columns;
+    tree.per_node_capacity = op.max_capacity;
 
-    // get the length of head to initialize start_offset and end_offset
-    bufferlist bl_head;
-    encode(head, bl_head);
-    uint64_t head_len = bl_head.length();
+    ret = lsm_write_tree_config(hctx, tree);
+    if (ret < 0) {
+        CLS_LOG(5, "ERROR: failed to initialize lsm tree")
+    }
 
-    head.entry_start_offset = head_len + LSM_NODE_OVERHEAD * 4 + LSM_PER_KEY_OVERHEAD * head.max_capacity;
-    head.entry_end_offset = head.entry_start_offset;
+    std::map<std::string, bufferlist> level1_objects;
+    for (int i = 0; i < fan_out; i++) {
+        cls_lsm_node_head head;
+        head.pool = op.pool;
+        head.my_object_id = tree.my_object_id + "/lv1-kr" + std::to_string(i+1);
+        head.level = 1;
 
-    CLS_LOG(20, "INFO: lsm_init level %u", head.level);
-    CLS_LOG(20, "INFO: lsm_init key range (%lu, %lu)", head.key_range.low_bound, head.key_range.high_bound);
+        uint64_t key_increment = (op.key_range.high_bound - op.key_range.low_bound)/fan_out
+        head.key_range.low_bound = op.key_range.low_bound + key_increment * (position-1);
+        if (position == fan_out) {
+            head.key_range.high_bound = op.key_range.high_bound;
+        } else {
+            head.key_range.high_bound = op.key_range.low_bound + key_increment * position;
+        }
+
+        head.max_capacity = op.max_capacity;
+        head.size = 0;
+        head.entry_start_offset = LSM_HEAD_SIZE_100K;
+        head.entry_end_offset = LSM_HEAD_SIZE_100K;
+
+        head.key_range_splits = fan_out/2;
+        head.column_group_splits = op.column_group;
+
+        head.bloomfilter_store.reserve(BLOOM_FILTER_STORE_SIZE_64K);
+        for (int i = 0; i < BLOOM_FILTER_STORE_SIZE_64K; i++) {
+            head.bloomfilter_store.push_back(false);
+        }
+
+        bufferlist bl_node_head;
+        encode(head, bl_node_head);
+        level1_objects[head.my_object_id] = bl_node_head;
+    }
+
+    CLS_LOG(20, "INFO: lsm_init node %s", tree.my_object_id, " with %u level 1 nodes", fan_out);
+
+    bufferlist *in;
+    ret = cls_cxx_scatter(hctx, level1_objects, op.pool, "cls_lsm", "lsm_write_node_head", *in);
+
+    return 0;
+}
+
+/**
+ * method to be called by scatter in lsm_init. Used to init level 1 nodes
+ */
+int lsm_init_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    auto in_iter = in->cbegin();
+    cls_lsm_node_head head;
+    try {
+        decode(head, in_iter);
+    } catch (ceph::buffer::error& err) {
+        CLS_LOG(5, "ERROR: lsm_init_node_head failed to decode head");
+        return -EINVAL;
+    }
 
     return lsm_write_node_head(hctx, head);
 }
@@ -163,7 +284,7 @@ int lsm_append_entries(cls_method_context_t hctx, cls_lsm_append_entries_op& op,
     return lsm_write_node_head(hctx, head);
 }
 
-int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_get_entries_ret& op_ret)
+int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret)
 {
     if (head.entry_start_offset == head.entry_end_offset) {
         CLS_LOG(20, "INFO: lsm_get_entries: node is empty, offset is %lu", head.entry_end_offset);
@@ -220,9 +341,30 @@ int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_
             return -EINVAL;
         }
 
-        op_ret.entries.emplace_back(entry);
+        // check if this is the entry wanted
+        auto it = find(op.keys.begin(), op.keys.end(), entry.key);
+        if (it != op.keys.end()) {
+            op_ret.entries.emplace_back(entry);
 
+            int index = it - op.keys.begin();
+            op.keys.erase(index)
+        }
+
+        // if we have found all we need, break
+        if (op.keys.empty()) {
+            break;
+        }
     } while (index < bl_chunk.length());
+
+    // we have gone through all data in the node but might need to ask from our children
+    if (!op.keys.empty()) {
+        cls_lsm_get_child_object_names_ret op_ret;
+        lsm_get_child_object_names(head, op, op_ret);
+
+        bufferlist keys_bl;
+        encode(op.keys, keys_bl);
+        r = cls_cxx_gather(hctx, op_ret.child_object_names, pool, "cls_lsm", "cls_lsm_read_node", &keys_bl);
+    }
     
     return 0;
 }
@@ -307,21 +449,70 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
     return 0; 
 }
 
-int lsm_get_child_object_names(cls_method_context_t hctx, cls_lsm_get_child_object_names_ret& op_ret)
+int lsm_check_if_key_exists(cls_lsm_node_head& node_head, cls_lsm_get_entries_op& op)
 {
-    // get the node
-    cls_lsm_node_head node;
-    int ret = lsm_read_node_head(hctx, node);
-    if (ret < 0) {
-        return ret;
+    std::vector<uint64_t> op_keys;
+    for (auto key : op.keys) {
+        if (lsm_bloomfilter_contains(node_head, std::string(key))) {
+            op_keys.push_back(key)
+        }
     }
-    
-    std::vector<std::string> children_objects;
-    for (uint32_t i = 0; i < node.naming_map.key_ranges; i++) {
-        for (uint32_t j = 0; j < node.naming_map.clm_groups.size(); j++) {
+    op.keys.clear();
+    op.keys.insert(op.keys.end(), op_keys.begin(), op_keys.end());
+
+    return 0;
+}
+
+int lsm_get_child_object_names(cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_read_from_children_ret& op_ret)
+{
+    // key ranges that are involved
+    std::map<int, std::set<uint64_t>> range_keys;
+    uint64_t key_increment = (head.key_range.high_bound - head.key_range.low_bound) / head.naming_map.key_ranges;
+    for (auto key : op.keys) {
+        uint64_t low = head.key_range.low_bound;
+
+        for (int i=0; i < head.naming_map.key_ranges, i++) {
+            uint64_t high = low + key_increment;
+            if (key >= low && key < high) {
+                if (range_keys.contains(i)) {
+                    range_keys.get(i).insert(key);
+                } else {
+                    std::set<uint64_t> keys_to_read;
+                    keys_to_read.insert(key);
+                    range_keys.insert(i, keys_to_read);
+                }
+                break;
+            }
+            low = high;
+        }
+    }
+
+    // column groups that need to be read from
+    std::set<int> clm_group_ids;
+    for (auto clm : op.columns) {
+        for (int i=0; i < head.naming_map.clm_groups.size(); i++) {
+            if (head.naming_map.clm_groups[i].contains(clm)) {
+                clm_group_ids.insert(i);
+                break;
+            }
+
+            if (i == head.naming_map.cls_groups.size()-1) {
+                CLS_LOG(10, "ERROR: invalid column name %s", clm)
+            }
+        }
+    }
+
+    // construct child object names
+    std::map<std::string, bufferlist> children_objects;
+    for (auto range_key : range_keys) {
+        for (auto clm_group_id : clm_group_ids) {
             std::stringstream ss;
-            ss << "/lv" << std::to_string(node.level+1) << "-kr" << std::to_string(i) << "-cg" << std::to_string(j);
-            children_objects.push_back(ss.str());
+            ss << "/parent_id:" << head.parent_id;
+            ss << "/lv" << std::to_string(head.level+1) << "-kr" << std::to_string(range_key.first) << "-cg" << std::to_string(clm_group_id);
+
+            bufferlist bl;
+            encode(range_key.second, bl);
+            children_objects.insert(ss.str(), bl);
         }
     }
 

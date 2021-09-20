@@ -7,37 +7,34 @@
 #include "cls/lsm/cls_lsm_types.h"
 
 struct cls_lsm_init_op {
-    uint8_t level;
+    std::string pool;
+    std::string app_name;
+    uint64_t    levels;
     cls_lsm_key_range key_range;
     uint64_t max_capacity;
-    uint64_t size;
-    uint64_t entry_start_offset;
-    uint64_t entry_end_offset;
-    cls_lsm_child_object_naming_map naming_map;
+    std::set<std::string> all_columns;
 
     cls_lsm_init_op() {}
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
-        encode(level, bl);
+        encode(pool, bl);
+        encode(app_name, bl);
+        encode(levels, bl);
         encode(key_range, bl);
         encode(max_capacity, bl);
-        encode(size, bl);
-        encode(entry_start_offset, bl);
-        encode(entry_end_offset, bl);
-        encode(naming_map, bl);
+        encode(all_columns, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
-        decode(level, bl);
+        decode(pool, bl);
+        decode(app_name, bl);
+        decode(levels, bl);
         decode(key_range, bl);
         decode(max_capacity, bl);
-        decode(size, bl);
-        decode(entry_start_offset, bl);
-        decode(entry_end_offset, bl);
-        decode(naming_map, bl);
+        decode(all_columns, bl);
         DECODE_FINISH(bl);
     }
 };
@@ -64,18 +61,21 @@ WRITE_CLASS_ENCODER(cls_lsm_append_entries_op)
 
 struct cls_lsm_get_entries_op {
     std::vector<uint64_t> keys;
+    std::vector<std::string> columns;
 
     cls_lsm_get_entries_op() {}
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
         encode(keys, bl);
+        encode(columns, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
         decode(keys, bl);
+        decode(columns, bl);
         DECODE_FINISH(bl);
     }
 };
@@ -100,24 +100,24 @@ struct cls_lsm_get_entries_ret {
 };
 WRITE_CLASS_ENCODER(cls_lsm_get_entries_ret)
 
-struct cls_lsm_get_child_object_names_ret {
-    std::vector<std::string> child_object_names;
+struct cls_lsm_read_from_children_ret {
+    std::map<std::string, bufferlist> read_map;
 
-    cls_lsm_get_child_object_names_ret() {}
+    cls_lsm_read_from_children_ret() {}
 
     void encode (ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
-        encode(child_object_names, bl);
+        encode(read_map, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
-        decode(child_object_names, bl);
+        decode(read_map, bl);
         DECODE_FINISH(bl);
     }
 };
-WRITE_CLASS_ENCODER(cls_lsm_get_child_object_names_ret)
+WRITE_CLASS_ENCODER(cls_lsm_read_from_children_ret)
 
 struct cls_lsm_get_child_object_name_ret {
     std::string child_object_name;
