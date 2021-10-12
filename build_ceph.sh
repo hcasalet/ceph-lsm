@@ -9,6 +9,9 @@
 # 7, git submodule update --init --recursive
 # 8, sudo su (--be the root for the rest)
 
+# there are times when error like "certification verification failed, the certificate is NOT trusted" is seen
+# this could be caused by corrupted cache, and can be resolved by: 
+# sudo apt clean; sudo apt update; sudo apt upgrade
 apt-get update
 
 ./install-deps.sh
