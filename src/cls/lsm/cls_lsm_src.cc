@@ -40,7 +40,7 @@ int lsm_read_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
         CLS_LOG(0, "ERROR: lsm_read_tree_config: failed to decode tree start");
         return -EINVAL;
     }
-    if (node_start != LSM_TREE_START) {
+    if (tree_start != LSM_TREE_START) {
         CLS_LOG(0, "ERROR: lsm_read_tree_config: invalid tree start");
         return -EINVAL;
     }
@@ -171,13 +171,13 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op, int fan_out)
     cls_lsm_tree_config tree;
     auto ret = lsm_read_tree_config(hctx, tree);
     if (ret == 0) {
-        CLS_LOG(5, "ERROR: tree was already initialized before")
+        CLS_LOG(5, "ERROR: tree was already initialized before");
         return -EEXIST;
     }
 
     // bail out for other errors
     if (ret < 0 && ret != -EINVAL) {
-        CLS_LOG(5, "ERROR: faild to initialize lsm tree")
+        CLS_LOG(5, "ERROR: faild to initialize lsm tree");
         return ret;
     }
 
@@ -185,12 +185,12 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op, int fan_out)
     tree.my_object_id = "/lsmtree-" + op.app_name + "-lv0";
     tree.levels = op.levels;
     tree.key_range = op.key_range;
-    tree.total_columns = op.total_columns;
+    tree.total_columns = op.all_columns;
     tree.per_node_capacity = op.max_capacity;
 
     ret = lsm_write_tree_config(hctx, tree);
     if (ret < 0) {
-        CLS_LOG(5, "ERROR: failed to initialize lsm tree")
+        CLS_LOG(5, "ERROR: failed to initialize lsm tree");
     }
 
     std::map<std::string, bufferlist> level1_objects;
@@ -200,12 +200,12 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op, int fan_out)
         head.my_object_id = tree.my_object_id + "/lv1-kr" + std::to_string(i+1);
         head.level = 1;
 
-        uint64_t key_increment = (op.key_range.high_bound - op.key_range.low_bound)/fan_out
-        head.key_range.low_bound = op.key_range.low_bound + key_increment * (position-1);
-        if (position == fan_out) {
+        uint64_t key_increment = (op.key_range.high_bound - op.key_range.low_bound)/fan_out;
+        head.key_range.low_bound = op.key_range.low_bound + key_increment * i;
+        if (i == fan_out-1) {
             head.key_range.high_bound = op.key_range.high_bound;
         } else {
-            head.key_range.high_bound = op.key_range.low_bound + key_increment * position;
+            head.key_range.high_bound = op.key_range.low_bound + key_increment * (i+1);
         }
 
         head.max_capacity = op.max_capacity;
@@ -358,12 +358,12 @@ int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_
 
     // we have gone through all data in the node but might need to ask from our children
     if (!op.keys.empty()) {
-        cls_lsm_get_child_object_names_ret op_ret;
+        cls_lsm_get_child_object_name_ret op_ret;
         lsm_get_child_object_names(head, op, op_ret);
 
         bufferlist keys_bl;
         encode(op.keys, keys_bl);
-        r = cls_cxx_gather(hctx, op_ret.child_object_names, pool, "cls_lsm", "cls_lsm_read_node", &keys_bl);
+        int r = cls_cxx_gather(hctx, op_ret.child_object_names, pool, "cls_lsm", "cls_lsm_read_node", &keys_bl);
     }
     
     return 0;

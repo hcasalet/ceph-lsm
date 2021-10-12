@@ -100,7 +100,7 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
         return ret;
     }
     if (op.keys.size() == 0) {
-        CLS_LOG(1, "INFO: keys do not exist in the object store, returning nothing \n")
+        CLS_LOG(1, "INFO: keys do not exist in the object store, returning nothing \n");
         return -ENODATA;
     }
 

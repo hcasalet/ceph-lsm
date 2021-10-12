@@ -60,24 +60,24 @@ WRITE_CLASS_ENCODER(cls_lsm_column_group)
 // column group map
 struct cls_lsm_column_group_map
 {
-    uint32_t                          key_ranges;
+    uint32_t                          key_ranges
     std::map<uint64_t, std::vector<cls_lsm_column_group> > clm_group;
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
-        encode(key_ranges, bl);
-        encode(clm_groups, bl);
+        encode(key_range, bl);
+        encode(clm_group, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
         decode(key_ranges, bl);
-        decode(clm_groups, bl);
+        decode(clm_group, bl);
         DECODE_FINISH(bl);
     }
 };
-WRITE_CLASS_ENCODER(cls_lsm_child_object_naming_map)
+WRITE_CLASS_ENCODER(cls_lsm_column_group_map)
 
 // marker for an entry
 struct cls_lsm_marker
@@ -136,7 +136,7 @@ struct cls_lsm_node_head
     uint64_t entry_start_offset;                            // marker where data starts
     uint64_t entry_end_offset;                              // marker where data ends
     uint64_t key_range_splits;                              // number of pieces key range splits into
-    std:vector<std::set<std::string> > column_group_splits; // always splits into two groups
+    std::vector<std::set<std::string>> column_group_splits; // always splits into two groups
     std::vector<bool>  bloomfilter_store;                   // store for bloomfilter
 
     void encode(ceph::buffer::list& bl) const {
@@ -193,7 +193,7 @@ struct cls_lsm_tree_config
         ENCODE_FINISH(bl);
     }
 
-    void decode(ceph::buffer::list::const_iterator& bl) const {
+    void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
         decode(pool, bl);
         decode(my_object_id, bl);
