@@ -120,7 +120,7 @@ struct cls_lsm_read_from_children_ret {
 WRITE_CLASS_ENCODER(cls_lsm_read_from_children_ret)
 
 struct cls_lsm_get_child_object_name_ret {
-    std::string child_object_name;
+    std::set<std::string> child_object_name;
 
     cls_lsm_get_child_object_name_ret() {}
 

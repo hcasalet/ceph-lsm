@@ -53,3 +53,12 @@ int cls_lsm_read(IoCtx& io_ctx, const std::string& oid,
     return 0;
 }
 
+void cls_lsm_write(ObjectWriteOperation& op,
+                std::vector<bufferlist> bl_data_vec)
+{
+    bufferlist in;
+    cls_lsm_append_entries_op call;
+    call.bl_data_vec = std::move(bl_data_vec);
+    encode(call, in);
+    op.exec(LSM_CLASS, LSM_WRITE_NODE, in);
+}

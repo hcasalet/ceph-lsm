@@ -60,7 +60,7 @@ WRITE_CLASS_ENCODER(cls_lsm_column_group)
 // column group map
 struct cls_lsm_column_group_map
 {
-    uint32_t                          key_ranges
+    uint32_t                          key_range;
     std::map<uint64_t, std::vector<cls_lsm_column_group> > clm_group;
 
     void encode(ceph::buffer::list& bl) const {
@@ -72,7 +72,7 @@ struct cls_lsm_column_group_map
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
-        decode(key_ranges, bl);
+        decode(key_range, bl);
         decode(clm_group, bl);
         DECODE_FINISH(bl);
     }
@@ -179,7 +179,7 @@ struct cls_lsm_tree_config
     std::string my_object_id;
     uint64_t    levels;
     cls_lsm_key_range key_range;
-    uint64_t    total_columns;
+    std::set<std::string> total_columns;
     uint64_t    per_node_capacity;
 
     void encode(ceph::buffer::list& bl) const {

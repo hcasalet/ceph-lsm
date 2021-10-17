@@ -213,8 +213,24 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op, int fan_out)
         head.entry_start_offset = LSM_HEAD_SIZE_100K;
         head.entry_end_offset = LSM_HEAD_SIZE_100K;
 
+        // key ranges can only split fan_out/2 ways, because the other half is for splitting columns
         head.key_range_splits = fan_out/2;
-        head.column_group_splits = op.column_group;
+
+        // splitting columns
+        std::vector<std::set<std::string>> column_splits(2);
+        std::set<std::string>::iterator itr;
+
+        uint64_t num_cols = op.all_columns.size();
+        uint64_t col=0;
+        for (itr = op.all_columns.begin(); itr != op.all_columns.end(); itr++) {
+            if (col < num_cols/2) {
+                column_splits[0].insert(*itr);
+            } else {
+                column_splits[1].insert(*itr);
+            }
+            col++;
+        }
+        head.column_group_splits = column_splits;
 
         head.bloomfilter_store.reserve(BLOOM_FILTER_STORE_SIZE_64K);
         for (int i = 0; i < BLOOM_FILTER_STORE_SIZE_64K; i++) {
@@ -226,7 +242,7 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op, int fan_out)
         level1_objects[head.my_object_id] = bl_node_head;
     }
 
-    CLS_LOG(20, "INFO: lsm_init node %s", tree.my_object_id, " with %u level 1 nodes", fan_out);
+    CLS_LOG(20, "INFO: lsm_init node with %u level 1 nodes", fan_out);
 
     bufferlist *in;
     ret = cls_cxx_scatter(hctx, level1_objects, op.pool, "cls_lsm", "lsm_write_node_head", *in);
@@ -275,8 +291,7 @@ int lsm_append_entries(cls_method_context_t hctx, cls_lsm_append_entries_op& op,
         if (ret < 0) {
             return ret;
         }
-        cls_lsm_marker marker{head.entry_end_offset, bl.length()};
-        head.entry_map.insert(std::pair<uint64_t, cls_lsm_marker>(bl_data.key, marker));
+
         head.entry_end_offset += bl.length();
         head.size++; 
     }
@@ -345,9 +360,7 @@ int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_
         auto it = find(op.keys.begin(), op.keys.end(), entry.key);
         if (it != op.keys.end()) {
             op_ret.entries.emplace_back(entry);
-
-            int index = it - op.keys.begin();
-            op.keys.erase(index)
+            op.keys.erase(it);
         }
 
         // if we have found all we need, break
@@ -358,12 +371,12 @@ int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_
 
     // we have gone through all data in the node but might need to ask from our children
     if (!op.keys.empty()) {
-        cls_lsm_get_child_object_name_ret op_ret;
-        lsm_get_child_object_names(head, op, op_ret);
+        cls_lsm_get_child_object_name_ret child_ret;
+        lsm_get_child_object_names(head, op, child_ret);
 
         bufferlist keys_bl;
         encode(op.keys, keys_bl);
-        int r = cls_cxx_gather(hctx, op_ret.child_object_names, pool, "cls_lsm", "cls_lsm_read_node", &keys_bl);
+        cls_cxx_gather(hctx, child_ret.child_object_name, head.pool, "cls_lsm", "cls_lsm_read_node", keys_bl);
     }
     
     return 0;
@@ -376,18 +389,19 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
         std::map<std::string, cls_lsm_append_entries_op> tgt_objs;
         std::vector<cls_lsm_entry> all_src;
         all_src.reserve(op.bl_data_vec.size() + head.size);
+        cls_lsm_get_entries_op entries_op;
         cls_lsm_get_entries_ret entries_ret;
-        ret = lsm_get_entries(hctx, head, entries_ret);
+        ret = lsm_get_entries(hctx, head, entries_op, entries_ret);
         all_src.insert(all_src.end(), op.bl_data_vec.begin(), op.bl_data_vec.end());
         all_src.insert(all_src.end(), entries_ret.entries.begin(), entries_ret.entries.end());
 
         uint64_t key_lb = head.key_range.low_bound;
         uint64_t key_hb = head.key_range.high_bound;
-        uint64_t key_increment = (key_hb - key_lb)/head.naming_map.key_ranges + 1;
-        uint64_t cg_size = head.naming_map.clm_groups.size();
+        uint64_t key_increment = (key_hb - key_lb)/head.key_range_splits + 1;
+        uint64_t cg_size = head.column_group_splits.size();
 
         // initialize target objects with the keys
-        for (uint32_t i = 0; i < head.naming_map.key_ranges; i++) {
+        for (uint32_t i = 0; i < head.key_range_splits; i++) {
             std::stringstream ss;
             ss << "/lv-" << (head.level + 1) << "/kr-" << i;
             for (uint32_t j = 0; j < cg_size; j++) {
@@ -399,7 +413,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
         // populate target objects with the values
         for (auto src : all_src) {
             uint64_t lowbound = key_lb;
-            for (uint32_t i = 0; i < head.naming_map.key_ranges; i++) {
+            for (uint32_t i = 0; i < head.key_range_splits; i++) {
                 if (src.key >= lowbound && src.key < lowbound + key_increment) {
                     std::vector<cls_lsm_entry> split_data;
                     split_data.reserve(cg_size);
@@ -412,7 +426,7 @@ int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, c
                     // split value ("columns")
                     for (auto it = src.value.begin(); it != src.value.end(); it++) {
                         for (uint32_t j = 0; j < cg_size; j++) {
-                            if (head.naming_map.clm_groups[j].columns.find(it->first) != head.naming_map.clm_groups[j].columns.end()) {
+                            if (head.column_group_splits[j].find(it->first) != head.column_group_splits[j].end()) {
                                 split_data[j].value.insert(std::pair<std::string, ceph::buffer::list>(it->first, it->second));
                             }
                         }
@@ -453,8 +467,8 @@ int lsm_check_if_key_exists(cls_lsm_node_head& node_head, cls_lsm_get_entries_op
 {
     std::vector<uint64_t> op_keys;
     for (auto key : op.keys) {
-        if (lsm_bloomfilter_contains(node_head, std::string(key))) {
-            op_keys.push_back(key)
+        if (lsm_bloomfilter_contains(node_head, to_string(key))) {
+            op_keys.push_back(key);
         }
     }
     op.keys.clear();
@@ -463,23 +477,23 @@ int lsm_check_if_key_exists(cls_lsm_node_head& node_head, cls_lsm_get_entries_op
     return 0;
 }
 
-int lsm_get_child_object_names(cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_read_from_children_ret& op_ret)
+int lsm_get_child_object_names(cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_get_child_object_name_ret& op_ret)
 {
     // key ranges that are involved
     std::map<int, std::set<uint64_t>> range_keys;
-    uint64_t key_increment = (head.key_range.high_bound - head.key_range.low_bound) / head.naming_map.key_ranges;
+    uint64_t key_increment = (head.key_range.high_bound - head.key_range.low_bound) / head.key_range_splits;
     for (auto key : op.keys) {
         uint64_t low = head.key_range.low_bound;
 
-        for (int i=0; i < head.naming_map.key_ranges, i++) {
+        for (uint64_t i=0; i < head.key_range_splits; i++) {
             uint64_t high = low + key_increment;
             if (key >= low && key < high) {
-                if (range_keys.contains(i)) {
-                    range_keys.get(i).insert(key);
+                if (range_keys.find(i) != range_keys.end()) {
+                    range_keys.find(i)->second.insert(key);
                 } else {
                     std::set<uint64_t> keys_to_read;
                     keys_to_read.insert(key);
-                    range_keys.insert(i, keys_to_read);
+                    range_keys.insert(std::pair<int, std::set<uint64_t>>(i, keys_to_read));
                 }
                 break;
             }
@@ -490,35 +504,33 @@ int lsm_get_child_object_names(cls_lsm_node_head& head, cls_lsm_get_entries_op& 
     // column groups that need to be read from
     std::set<int> clm_group_ids;
     for (auto clm : op.columns) {
-        for (int i=0; i < head.naming_map.clm_groups.size(); i++) {
-            if (head.naming_map.clm_groups[i].contains(clm)) {
+        for (uint64_t i=0; i < head.column_group_splits.size(); i++) {
+            if (head.column_group_splits[i].find(clm) != head.column_group_splits[i].end()) {
                 clm_group_ids.insert(i);
                 break;
             }
 
-            if (i == head.naming_map.cls_groups.size()-1) {
-                CLS_LOG(10, "ERROR: invalid column name %s", clm)
+            if (i == head.column_group_splits.size()-1) {
+                CLS_LOG(10, "ERROR: invalid column name %s", clm.c_str());
             }
         }
     }
 
     // construct child object names
-    std::map<std::string, bufferlist> children_objects;
+    std::set<std::string> children_objects;
     for (auto range_key : range_keys) {
         for (auto clm_group_id : clm_group_ids) {
             std::stringstream ss;
-            ss << "/parent_id:" << head.parent_id;
+            ss << "/parent_id:" << head.my_object_id;
             ss << "/lv" << std::to_string(head.level+1) << "-kr" << std::to_string(range_key.first) << "-cg" << std::to_string(clm_group_id);
 
-            bufferlist bl;
-            encode(range_key.second, bl);
-            children_objects.insert(ss.str(), bl);
+            children_objects.insert(ss.str());
         }
     }
 
-    op_ret.child_object_names = children_objects;
+    op_ret.child_object_name = children_objects;
 
-    CLS_LOG(20, "INFO: lsm_get_child_object_names: size of child objects: %lu", op_ret.child_object_names.size());
+    CLS_LOG(20, "INFO: lsm_get_child_object_names: size of child objects: %lu", op_ret.child_object_name.size());
     
     return 0;
 }

@@ -53,7 +53,7 @@ int lsm_init_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out);
 /**
  * function to get the children object names
  */
-std::set<std::string> lsm_get_child_object_names(cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_get_child_object_name_ret& op_ret);
+int lsm_get_child_object_names(cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_get_child_object_name_ret& op_ret);
 
 /**
  * function to check if a node has the key being looked for or not
