@@ -1,5 +1,11 @@
 #!/bin/bash -x
 
+# some notes about using CloudLab: 
+# url: cloudlab.us
+# profile: small-lan
+# physical node type: m510
+# Temporary Filesystem Size: 100GB
+
 # To build: 1, % id (-- to find the uid:gid)
 # 2, sudo su
 # 3, chown -R uid:gid /mydata (--to grant the extra disk to myself)
@@ -31,3 +37,10 @@ chmod -R 777 build/src/pybind/mgr/dashboard
 cd build
 
 ninja
+
+# to start a ceph cluster, instead of doing the above step "ninja", can do:
+make -j32 vstart
+../src/stop.sh 
+rm -rf out dev
+ulimit -l unlimited
+MON=1 OSD=3 MDS=0 MGR=1 FS=0 RGW=0 NFS=0 ../src/vstart.sh -d -n -x -i 127.0.0.1 --without-dashboard
