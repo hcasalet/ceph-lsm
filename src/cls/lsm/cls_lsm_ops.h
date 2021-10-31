@@ -7,21 +7,23 @@
 #include "cls/lsm/cls_lsm_types.h"
 
 struct cls_lsm_init_op {
-    std::string pool;
-    std::string app_name;
+    std::string pool_name;
+    std::string tree_name;
     uint64_t    levels;
     cls_lsm_key_range key_range;
+    uint64_t fan_out;
     uint64_t max_capacity;
-    std::set<std::string> all_columns;
+    std::vector<std::string> all_columns;
 
     cls_lsm_init_op() {}
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
-        encode(pool, bl);
-        encode(app_name, bl);
+        encode(pool_name, bl);
+        encode(tree_name, bl);
         encode(levels, bl);
         encode(key_range, bl);
+        encode(fan_out, bl);
         encode(max_capacity, bl);
         encode(all_columns, bl);
         ENCODE_FINISH(bl);
@@ -29,10 +31,11 @@ struct cls_lsm_init_op {
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
-        decode(pool, bl);
-        decode(app_name, bl);
+        decode(pool_name, bl);
+        decode(tree_name, bl);
         decode(levels, bl);
         decode(key_range, bl);
+        decode(fan_out, bl);
         decode(max_capacity, bl);
         decode(all_columns, bl);
         DECODE_FINISH(bl);
@@ -41,7 +44,7 @@ struct cls_lsm_init_op {
 WRITE_CLASS_ENCODER(cls_lsm_init_op)
 
 struct cls_lsm_append_entries_op {
-    std::vector<cls_lsm_entry> bl_data_vec;
+    std::vector<ceph::buffer::list> bl_data_vec;
 
     cls_lsm_append_entries_op() {}
 

@@ -360,3 +360,7 @@ set_target_properties(cls_lsm PROPERTIES
   INSTALL_RPATH ""
   CXX_VISIBILITY_PRESET hidden)
 install(TARGETS cls_lsm DESTINATION ${cls_dir})
+
+set(cls_lsm_client_srcs
+  lsm/cls_lsm_client.cc)
+add_library(cls_lsm_client STATIC ${cls_lsm_client_srcs})

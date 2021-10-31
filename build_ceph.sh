@@ -38,9 +38,18 @@ cd build
 
 ninja
 
-# to start a ceph cluster, instead of doing the above step "ninja", can do:
-make -j32 vstart
+# To run Ceph 
 ../src/stop.sh 
 rm -rf out dev
 ulimit -l unlimited
 MON=1 OSD=3 MDS=0 MGR=1 FS=0 RGW=0 NFS=0 ../src/vstart.sh -d -n -x -i 127.0.0.1 --without-dashboard
+
+# list pools
+cd build
+bin/ceph osd lspools
+
+# build lsm
+bin/ceph_test_cls_lsm
+
+# Check the object
+bin/rados -p <pool_name> ls

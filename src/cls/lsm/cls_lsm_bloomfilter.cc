@@ -28,7 +28,7 @@ int lsm_bloomfilter_clear(cls_lsm_node_head& head)
     return 0;
 }
 
-bool lsm_bloomfilter_contains(cls_lsm_node_head& head, const std::string& object)
+bool lsm_bloomfilter_contains(std::vector<bool> bloomfilter_store, const std::string& object)
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);
 	lsm_bloomfilter_hash(object, std::move(MD5_hash_result_buffer));
@@ -37,7 +37,7 @@ bool lsm_bloomfilter_contains(cls_lsm_node_head& head, const std::string& object
 	for (size_t i = 0; i < HASH_FUNCTION_COUNT; i++)
 	{
 		const uint16_t index_to_get = object_hashes[i];
-		if (!head.bloomfilter_store[index_to_get]) return false;
+		if (!bloomfilter_store[index_to_get]) return false;
 	}
 
 	return true;

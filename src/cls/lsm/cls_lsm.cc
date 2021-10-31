@@ -37,12 +37,8 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
         return -EINVAL;
     }
 
-    int leaf_node_total = (op.key_range.high_bound - op.key_range.low_bound)/op.max_capacity;
-    float fan_out_rate = pow(leaf_node_total, 1.0/(float)op.levels);
-    int fan_out = static_cast<int>(fan_out_rate) + 1;
-
-    // initialize only the level-1 nodes 
-    lsm_init(hctx, op, fan_out);
+    // initialize only the level-0 node
+    lsm_init(hctx, op);
 
     return 0;
 }
@@ -52,7 +48,7 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
  */ 
 static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    auto iter = in->cbegin();
+    /*auto iter = in->cbegin();
     cls_lsm_append_entries_op op;
     try {
         decode(op, iter);
@@ -71,7 +67,9 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
         return lsm_compact_node(hctx, op, head);
     } else {
         return lsm_append_entries(hctx, op, head);
-    }
+    }*/
+
+    return 0;
 }
 
 /**
@@ -79,7 +77,7 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
  */
 static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    auto iter = in->cbegin();
+    /*auto iter = in->cbegin();
     cls_lsm_get_entries_op op;
     try {
         decode(op, iter);
@@ -88,29 +86,10 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
         return -EINVAL;
     }
 
-    cls_lsm_node_head node_head;
-    auto ret = lsm_read_node_head(hctx, node_head);
-    if (ret < 0) {
-        return ret;
-    }
-
-    // Check the sub-root-node's bloom filter
-    ret = lsm_check_if_key_exists(node_head, op);
-    if (ret < 0) {
-        return ret;
-    }
-    if (op.keys.size() == 0) {
-        CLS_LOG(1, "INFO: keys do not exist in the object store, returning nothing \n");
-        return -ENODATA;
-    }
-
     cls_lsm_get_entries_ret op_ret;
-    ret = lsm_get_entries(hctx, node_head, op, op_ret);
-    if (ret < 0) {
-        return ret;
-    }
+    auto ret = lsm_read_node(hctx, op, op_ret);
 
-    encode(op_ret, *out);
+    encode(op_ret, *out);*/
     return 0;
 }
 
