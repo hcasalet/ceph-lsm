@@ -28,11 +28,11 @@ void cls_lsm_init(librados::ObjectWriteOperation& op,
 }
 
 int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
-                std::vector<uint64_t>& keys,
+                std::vector<std::string>& keys,
                 std::vector<std::string>& columns,
                 std::vector<cls_lsm_entry>& entries)
 {
-    bufferlist in, out;
+    /*bufferlist in, out;
     cls_lsm_get_entries_op op;
     op.keys = keys;
     op.columns = columns;
@@ -50,18 +50,19 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
         return -EIO;
     }
 
-    entries = std::move(ret.entries);
+    entries = std::move(ret.entries);*/
 
     return 0;
 }
 
 void cls_lsm_write(librados::ObjectWriteOperation& op,
                 const std::string& oid,
-                std::vector<bufferlist> bl_data_vec)
+                std::map<uint64_t, bufferlist> bl_data_map)
 {
     bufferlist in;
     cls_lsm_append_entries_op call;
-    call.bl_data_vec = std::move(bl_data_vec);
+    call.tree_name = oid;
+    call.bl_data_map = std::move(bl_data_map);
     encode(call, in);
     op.exec(LSM_CLASS, LSM_WRITE_NODE, in);
 }

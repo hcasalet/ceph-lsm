@@ -40,7 +40,8 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op)
     // total length of the tree-config = tree other fields + config_end_offset + LSM_TREE_START
     bufferlist bl;
     encode(tree, bl);
-    tree.config_end_offset = bl.length() + sizeof(uint64_t) + sizeof(uint16_t);
+    tree.data_start_offset = bl.length() + sizeof(uint64_t) + sizeof(uint16_t) + LSM_ROOT_DATA_START_PADDING;
+    tree.data_end_offset = tree.data_start_offset;
 
     // write out the tree-config
     ret = lsm_write_tree_config(hctx, tree);
@@ -60,7 +61,7 @@ int lsm_read_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
     uint64_t read_size = CHUNK_SIZE, start_offset = 0;
 
     bufferlist bl_tree;
-    const auto ret = cls_cxx_read(hctx, start_offset, read_size, &bl_tree);
+    auto ret = cls_cxx_read(hctx, start_offset, read_size, &bl_tree);
 
     if (ret < 0) {
         CLS_LOG(5, "ERROR: lsm_read_tree_config: failed read lsm tree config");
@@ -87,6 +88,29 @@ int lsm_read_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
         return -EINVAL;
     }
 
+    // check tree length
+    uint64_t tree_length;
+    try {
+        decode(tree_length, it);
+    } catch (const ceph::buffer::error& err) {
+        CLS_LOG(0, "ERROR: lsm_read_tree_config: failed to decode tree length");
+        return -EINVAL;
+    }
+
+    // if read-in length is not covering the whole tree, need to read more
+    if (read_size - sizeof(uint16_t) - sizeof(uint64_t) < tree_length) {
+        uint64_t continue_to_read = tree_length - read_size + sizeof(uint16_t) + sizeof(uint64_t);
+        start_offset += read_size;
+        bufferlist bl_tree_2;
+        ret = cls_cxx_read(hctx, start_offset, continue_to_read, &bl_tree_2);
+
+        if (ret < 0) {
+            CLS_LOG(0, "ERROR: lsm_read_tree_config: failed to read the rest of the tree");
+            return ret;
+        }
+        bl_tree.claim_append(bl_tree_2);
+    }
+
     // get tree config
     try {
         decode(tree, it);
@@ -106,7 +130,13 @@ int lsm_write_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
     bufferlist bl;
     uint16_t tree_start = LSM_TREE_START;
     encode(tree_start, bl);
-    encode(tree, bl);
+
+    bufferlist bl_data;
+    encode(tree, bl_data);
+    uint64_t encoded_length = bl_data.length();
+    encode(encoded_length, bl);
+
+    bl.claim_append(bl_data);
 
     int ret = cls_cxx_write2(hctx, 0, bl.length(), &bl, CEPH_OSD_OP_FLAG_FADVISE_WILLNEED);
     if (ret < 0) {
@@ -350,14 +380,68 @@ int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_
         bufferlist keys_bl;
         encode(op.keys, keys_bl);
         cls_cxx_gather(hctx, child_ret.child_object_name, head.pool, "cls_lsm", "cls_lsm_read_node", keys_bl);
-    }
+    }*/
     
+    return 0;
+}
+
+/**
+ * Write the data into the root node
+ */
+int lsm_write_data(cls_method_context_t hctx, cls_lsm_append_entries_op& op)
+{
+    // Read the tree-config to know if the root node has capacity
+    cls_lsm_tree_config tree_config;
+    auto ret = lsm_read_tree_config(hctx, tree_config);
+
+    if (tree_config.size + op.bl_data_map.size() <= tree_config.per_node_capacity) {
+        // there is enough space for the data so we will start the loop to write it in
+        for (auto entry : op.bl_data_map) {
+            ret = lsm_write_root_node(hctx, tree_config, entry.first, entry.second);
+            if (ret < 0) {
+                CLS_LOG(1, "ERROR: lsm_write_data - failed to write data");
+                return ret;
+            }
+        }
+    } else {
+        // compaction
+    }
+
+    return 0;
+}
+
+int lsm_write_root_node(cls_method_context_t hctx, cls_lsm_tree_config& tree_config, uint64_t key, bufferlist bl_data)
+{
+    // first step is to write the bloomfilter stores
+    lsm_bloomfilter_insert(tree_config.bloomfilter_store_all, to_string(key));
+    lsm_bloomfilter_insert(tree_config.bloomfilter_store_root, to_string(key));
+
+    // then we encode the data with start marker and its length
+    bufferlist bl;
+    uint16_t entry_start = LSM_ENTRY_START;
+    encode(entry_start, bl);
+
+    uint64_t encoded_len = bl_data.length();
+    encode(encoded_len, bl);
+
+    bl.claim_append(bl_data);
+
+    // then we will write the data into the object
+    auto ret = cls_cxx_write2(hctx, tree_config.data_end_offset, bl.length(), &bl, CEPH_OSD_OP_FLAG_FADVISE_WILLNEED);
+    if (ret < 0) {
+        CLS_LOG(5, "ERROR: lsm_write_root_node: failed to write lsm root node");
+        return ret;
+    }
+
+    tree_config.data_end_offset += bl.length();
+    tree_config.size++;
+
     return 0;
 }
 
 int lsm_write_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 {
-    bufferlist bl;
+    /*bufferlist bl;
     uint16_t node_start = LSM_NODE_START;
     encode(node_start, bl);
 

@@ -44,26 +44,29 @@ struct cls_lsm_init_op {
 WRITE_CLASS_ENCODER(cls_lsm_init_op)
 
 struct cls_lsm_append_entries_op {
-    std::vector<ceph::buffer::list> bl_data_vec;
+    std::string tree_name;
+    std::map<uint64_t, ceph::buffer::list> bl_data_map;
 
     cls_lsm_append_entries_op() {}
 
     void encode (ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
-        encode(bl_data_vec, bl);
+        encode(tree_name, bl);
+        encode(bl_data_map, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
-        decode(bl_data_vec, bl);
+        decode(tree_name, bl);
+        decode(bl_data_map, bl);
         DECODE_FINISH(bl);
     }
 };
 WRITE_CLASS_ENCODER(cls_lsm_append_entries_op)
 
 struct cls_lsm_get_entries_op {
-    std::vector<uint64_t> keys;
+    std::vector<std::string> keys;
     std::vector<std::string> columns;
 
     cls_lsm_get_entries_op() {}

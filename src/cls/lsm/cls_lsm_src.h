@@ -41,6 +41,16 @@ int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head);
 int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret);
 
 /**
+ * function to write data entries into the system
+ */
+int lsm_write_data(cls_method_context_t hctx, cls_lsm_append_entries_op& op);
+
+/**
+ * 
+ */
+int lsm_write_root_node(cls_method_context_t hctx, cls_lsm_tree_config& tree_config, uint64_t key, bufferlist bl_data);
+
+/**
  * function to write the header info of any lsm tree node which is on level 1 or higher
  */
 int lsm_write_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head);

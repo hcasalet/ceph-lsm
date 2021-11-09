@@ -16,16 +16,11 @@
  */
 #define BLOOM_FILTER_STORE_SIZE_64K 65536
 #define BLOOM_FILTER_STORE_SIZE_256K 262144
+
 /**
- * The following is where the data in the root node starts. 352K is reserved for
- * the tree config, which breaks down as follows:
- * - bloomfilter store for all data: 256K
- * - bloomfilter store for current root node data: 64K
- * - column names: 1000 cols * 24 bytes per col = 24K
- * - other data in tree config: ~1K
- * - a small padding buffer: ~7K
+ * padding buffer between the tree-config in root node and the data
  */
-#define LSM_ROOT_DATA_START_352K 360448
+#define LSM_ROOT_DATA_START_PADDING 2048
 
 // size of head
 #define LSM_NON_ROOT_DATA_START_100K 102400
@@ -126,7 +121,7 @@ WRITE_CLASS_ENCODER(cls_lsm_marker)
 // key-value format; value is a map of "column name -> bufferlist"
 struct cls_lsm_entry
 {
-    uint64_t key;
+    std::string key;
     std::map<std::string, ceph::buffer::list> value;
     
     void encode(ceph::buffer::list& bl) const {
@@ -198,10 +193,12 @@ struct cls_lsm_tree_config
     uint64_t    levels;
     cls_lsm_key_range key_range;
     std::vector<std::string> all_columns;
+    uint64_t    size;
     uint64_t    per_node_capacity;
     std::vector<bool> bloomfilter_store_all{std::vector<bool>(BLOOM_FILTER_STORE_SIZE_256K, false)};
     std::vector<bool> bloomfilter_store_root{std::vector<bool>(BLOOM_FILTER_STORE_SIZE_64K, false)};
-    uint64_t    config_end_offset;
+    uint64_t    data_start_offset;
+    uint64_t    data_end_offset;
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
@@ -210,10 +207,12 @@ struct cls_lsm_tree_config
         encode(levels, bl);
         encode(key_range, bl);
         encode(all_columns, bl);
+        encode(size, bl);
         encode(per_node_capacity, bl);
         encode(bloomfilter_store_all, bl);
         encode(bloomfilter_store_root, bl);
-        encode(config_end_offset, bl);
+        encode(data_start_offset, bl);
+        encode(data_end_offset, bl);
         ENCODE_FINISH(bl);
     }
 
@@ -224,10 +223,12 @@ struct cls_lsm_tree_config
         decode(levels, bl);
         decode(key_range, bl);
         decode(all_columns, bl);
+        decode(size, bl);
         decode(per_node_capacity, bl);
         decode(bloomfilter_store_all, bl);
         decode(bloomfilter_store_root, bl);
-        decode(config_end_offset, bl);
+        decode(data_start_offset, bl);
+        decode(data_end_offset, bl);
         DECODE_FINISH(bl);
     }
 };

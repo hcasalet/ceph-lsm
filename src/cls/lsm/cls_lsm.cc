@@ -38,7 +38,10 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
     }
 
     // initialize only the level-0 node
-    lsm_init(hctx, op);
+    auto ret = lsm_init(hctx, op);
+    if (ret < 0) {
+        return ret;
+    }
 
     return 0;
 }
@@ -48,7 +51,8 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
  */ 
 static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    /*auto iter = in->cbegin();
+    // first get the input
+    auto iter = in->cbegin();
     cls_lsm_append_entries_op op;
     try {
         decode(op, iter);
@@ -57,17 +61,11 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
         return -EINVAL;
     }
 
-    cls_lsm_node_head head;
-    auto ret = lsm_read_node_head(hctx, head);
+    // Write the data
+    auto ret = lsm_write_data(hctx, op);
     if (ret < 0) {
         return ret;
     }
-
-    if (head.size + op.bl_data_vec.size() > head.max_capacity) {
-        return lsm_compact_node(hctx, op, head);
-    } else {
-        return lsm_append_entries(hctx, op, head);
-    }*/
 
     return 0;
 }

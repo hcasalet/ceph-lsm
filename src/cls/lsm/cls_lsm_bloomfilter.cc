@@ -6,7 +6,7 @@
 #include "cls/lsm/cls_lsm_types.h"
 #include "cls/lsm/cls_lsm_bloomfilter.h"
 
-int lsm_bloomfilter_insert(cls_lsm_node_head& head, const std::string& object)
+int lsm_bloomfilter_insert(std::vector<bool>& bloomfilter_store, const std::string& object)
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);
 	lsm_bloomfilter_hash(object, std::move(MD5_hash_result_buffer));
@@ -15,20 +15,20 @@ int lsm_bloomfilter_insert(cls_lsm_node_head& head, const std::string& object)
 	for (size_t i = 0; i < HASH_FUNCTION_COUNT; i++)
 	{
 		const uint16_t index_to_set = object_hashes[i];
-		head.bloomfilter_store[index_to_set] = true;
+		bloomfilter_store[index_to_set] = true;
 	}
 
     return 0;
 }
 
-int lsm_bloomfilter_clear(cls_lsm_node_head& head)
+int lsm_bloomfilter_clear(std::vector<bool>& bloomfilter_store)
 {
-	head.bloomfilter_store.clear();
+	bloomfilter_store.clear();
 
     return 0;
 }
 
-bool lsm_bloomfilter_contains(std::vector<bool> bloomfilter_store, const std::string& object)
+bool lsm_bloomfilter_contains(std::vector<bool>& bloomfilter_store, const std::string& object)
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);
 	lsm_bloomfilter_hash(object, std::move(MD5_hash_result_buffer));
