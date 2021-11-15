@@ -38,7 +38,7 @@ int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head);
 /**
  * function to read the data entries stored in an object
  */
-int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret);
+int lsm_get_entries(cls_method_context_t hctx, cls_lsm_tree_config& tree, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret);
 
 /**
  * function to write data entries into the system
@@ -78,6 +78,6 @@ int lsm_get_child_object_names(cls_lsm_node_head& head, cls_lsm_get_entries_op& 
 /**
  * function to check if a node has the key being looked for or not
  */
-int lsm_check_if_key_exists(cls_lsm_node_head& node_head, cls_lsm_get_entries_op& op);
+int lsm_check_if_key_exists(std::vector<bool> bloomfilter_store, cls_lsm_get_entries_op& op);
 
 #endif /* CEPH_CLS_LSM_SRC_H */

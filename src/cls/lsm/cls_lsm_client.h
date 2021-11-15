@@ -35,7 +35,7 @@ void cls_lsm_init(librados::ObjectWriteOperation& op,
  * - entries: the reading result
  */
 int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
-                std::vector<std::string>& keys,
+                std::vector<uint64_t>& keys,
                 std::vector<std::string>& columns,
                 std::vector<cls_lsm_entry>& entries);
 

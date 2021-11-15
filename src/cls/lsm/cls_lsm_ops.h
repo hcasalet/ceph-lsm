@@ -66,7 +66,7 @@ struct cls_lsm_append_entries_op {
 WRITE_CLASS_ENCODER(cls_lsm_append_entries_op)
 
 struct cls_lsm_get_entries_op {
-    std::vector<std::string> keys;
+    std::vector<uint64_t> keys;
     std::vector<std::string> columns;
 
     cls_lsm_get_entries_op() {}

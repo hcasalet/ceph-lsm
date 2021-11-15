@@ -98,16 +98,16 @@ TEST_F(TestClsLsm, Read) {
     // test write: 100 elelemts each, expecting 0 (OK)
     test_write(tree_name, 10, 0);
 
-    /*std::vector<std::string> keys;
-    keys.push_back(to_string(3));
-    keys.push_back(to_string(4));
-    keys.push_back(to_string(5));
+    std::vector<uint64_t> keys;
+    keys.push_back(std::hash<std::string>{}(to_string(3)));
+    keys.push_back(std::hash<std::string>{}(to_string(4)));
+    keys.push_back(std::hash<std::string>{}(to_string(5)));
 
     auto total_elements = 0;
     std::vector<cls_lsm_entry> entries;
-    const auto ret = cls_lsm_read(ioctx, tree_name, cols, entries);
+    const auto ret = cls_lsm_read(ioctx, tree_name, keys, cols, entries);
     ASSERT_EQ(0, ret);
 
     total_elements += entries.size();
-    ASSERT_EQ(total_elements, 3);*/
+    ASSERT_EQ(total_elements, 3);
 }

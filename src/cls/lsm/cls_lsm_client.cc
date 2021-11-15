@@ -28,11 +28,11 @@ void cls_lsm_init(librados::ObjectWriteOperation& op,
 }
 
 int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
-                std::vector<std::string>& keys,
+                std::vector<uint64_t>& keys,
                 std::vector<std::string>& columns,
                 std::vector<cls_lsm_entry>& entries)
 {
-    /*bufferlist in, out;
+    bufferlist in, out;
     cls_lsm_get_entries_op op;
     op.keys = keys;
     op.columns = columns;
@@ -42,6 +42,7 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
     if (r < 0)
         return r;
 
+    std::cout << "peaches " << endl;
     cls_lsm_get_entries_ret ret;
     auto iter = out.cbegin();
     try {
@@ -50,7 +51,7 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
         return -EIO;
     }
 
-    entries = std::move(ret.entries);*/
+    entries = std::move(ret.entries);
 
     return 0;
 }

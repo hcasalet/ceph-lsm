@@ -75,7 +75,7 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
  */
 static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    /*auto iter = in->cbegin();
+    auto iter = in->cbegin();
     cls_lsm_get_entries_op op;
     try {
         decode(op, iter);
@@ -86,8 +86,11 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
 
     cls_lsm_get_entries_ret op_ret;
     auto ret = lsm_read_node(hctx, op, op_ret);
+    if (ret < 0) {
+        return ret;
+    }
 
-    encode(op_ret, *out);*/
+    encode(op_ret, *out);
     return 0;
 }
 

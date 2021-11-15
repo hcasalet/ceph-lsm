@@ -1,5 +1,6 @@
-#include "include/types.h"
+#include <algorithm>
 
+#include "include/types.h"
 #include "objclass/objclass.h"
 #include "cls/lsm/cls_lsm_types.h"
 #include "cls/lsm/cls_lsm_ops.h"
@@ -35,6 +36,7 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op)
     tree.levels = op.levels;
     tree.key_range = op.key_range;
     tree.all_columns = op.all_columns;
+    tree.size = 0;
     tree.per_node_capacity = op.max_capacity;
 
     // total length of the tree-config = tree other fields + config_end_offset + LSM_TREE_START
@@ -87,7 +89,6 @@ int lsm_read_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
         CLS_LOG(0, "ERROR: lsm_read_tree_config: invalid tree start");
         return -EINVAL;
     }
-
     // check tree length
     uint64_t tree_length;
     try {
@@ -99,6 +100,7 @@ int lsm_read_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
 
     // if read-in length is not covering the whole tree, need to read more
     if (read_size - sizeof(uint16_t) - sizeof(uint64_t) < tree_length) {
+        CLS_LOG(1, "need to read again!");
         uint64_t continue_to_read = tree_length - read_size + sizeof(uint16_t) + sizeof(uint64_t);
         start_offset += read_size;
         bufferlist bl_tree_2;
@@ -155,7 +157,8 @@ int lsm_read_node(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm
     // Reading the items from the level-0 node. lsm_read_from_root returns ret as the number of 
     // rows that exist in the system. When ret equals 0, it means the keys are not found in the
     // system. 
-    /*auto ret = lsm_read_from_root(hctx, op, op_ret)
+    auto ret = lsm_read_from_root(hctx, op, op_ret);
+
     if (ret < 0) {
         CLS_LOG(1, "INFO: failed to read from tree root");
         return ret;
@@ -166,7 +169,7 @@ int lsm_read_node(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm
         return ret;
     }
 
-    if (op_ret.entries.size() >= ret) {
+    if (op_ret.entries.size() >= op.keys.size()) {
         CLS_LOG(1, "INFO: found all the keys in level-0");
         return 0;
     }
@@ -174,7 +177,7 @@ int lsm_read_node(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm
     // If we come here, it means that there are keys that are looked for existing in the system 
     // but they are in levels below level-0, so we have to look downward the tree. First step 
     // from here is to read the node head from level-1 on.
-    cls_lsm_node_head node_head;
+   /* cls_lsm_node_head node_head;
     ret = lsm_read_node_head(hctx, node_head);
     if (ret < 0) {
         return ret;
@@ -206,7 +209,7 @@ int lsm_read_node(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm
  */
 int lsm_read_from_root(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret)
 {
-    /*cls_lsm_tree_config tree;
+    cls_lsm_tree_config tree;
     auto ret = lsm_read_tree_config(hctx, tree);
     if (ret < 0) {
         CLS_LOG(5, "ERROR: reading from tree root failed");
@@ -218,10 +221,16 @@ int lsm_read_from_root(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cl
     if (op.keys.size() == 0) {
         CLS_LOG(5, "INFO: lsm_read_frm_root - keys not found in the system");
         return 0;
-    }*/
+    }
 
-    return 0;
+    // Read the entries to op_ret if they exist in root node
+    ret = lsm_get_entries(hctx, tree, op, op_ret);
+    if (ret < 0) {
+        CLS_LOG(5, "INFO: lsm_read_from_root - getting entries failed");
+        return ret;
+    }
 
+    return op_ret.entries.size();
 }
 
 /**
@@ -229,7 +238,7 @@ int lsm_read_from_root(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cl
  */
 int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 {
-    /*uint64_t read_size = CHUNK_SIZE, start_offset = 0;
+   /* uint64_t read_size = CHUNK_SIZE, start_offset = 0;
 
     bufferlist bl_node;
     const auto ret = cls_cxx_read(hctx, start_offset, read_size, &bl_node);
@@ -290,27 +299,27 @@ int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 
 int lsm_check_if_key_exists(std::vector<bool> bloomfilter_store, cls_lsm_get_entries_op& op)
 {
-    /*std::vector<uint64_t> op_keys;
+    std::vector<uint64_t> op_keys;
     for (auto key : op.keys) {
         if (lsm_bloomfilter_contains(bloomfilter_store, to_string(key))) {
             op_keys.push_back(key);
         }
     }
     op.keys.clear();
-    op.keys.insert(op.keys.end(), op_keys.begin(), op_keys.end());*/
+    op.keys.insert(op.keys.end(), op_keys.begin(), op_keys.end());
 
     return 0;
 }
 
-int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret)
+int lsm_get_entries(cls_method_context_t hctx, cls_lsm_tree_config& tree, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret)
 {
-    /*if (head.entry_start_offset == head.entry_end_offset) {
-        CLS_LOG(20, "INFO: lsm_get_entries: node is empty, offset is %lu", head.entry_end_offset);
+    if (tree.data_start_offset == tree.data_end_offset) {
+        CLS_LOG(20, "INFO: lsm_get_entries: node is empty, offset is %lu", tree.data_end_offset);
         return 0;
     }
 
     bufferlist bl_chunk;
-    auto ret = cls_cxx_read(hctx, head.entry_start_offset, (head.entry_end_offset - head.entry_start_offset), &bl_chunk);
+    auto ret = cls_cxx_read(hctx, tree.data_start_offset, (tree.data_end_offset - tree.data_start_offset), &bl_chunk);
     if (ret < 0) {
         return ret;
     }
@@ -360,7 +369,7 @@ int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_
         }
 
         // check if this is the entry wanted
-        auto it = find(op.keys.begin(), op.keys.end(), entry.key);
+        auto it = std::find(op.keys.begin(), op.keys.end(), entry.key);
         if (it != op.keys.end()) {
             op_ret.entries.emplace_back(entry);
             op.keys.erase(it);
@@ -374,13 +383,13 @@ int lsm_get_entries(cls_method_context_t hctx, cls_lsm_node_head& head, cls_lsm_
 
     // we have gone through all data in the node but might need to ask from our children
     if (!op.keys.empty()) {
-        cls_lsm_get_child_object_name_ret child_ret;
+        /*cls_lsm_get_child_object_name_ret child_ret;
         lsm_get_child_object_names(head, op, child_ret);
 
         bufferlist keys_bl;
         encode(op.keys, keys_bl);
-        cls_cxx_gather(hctx, child_ret.child_object_name, head.pool, "cls_lsm", "cls_lsm_read_node", keys_bl);
-    }*/
+        cls_cxx_gather(hctx, child_ret.child_object_name, head.pool, "cls_lsm", "cls_lsm_read_node", keys_bl);*/
+    }
     
     return 0;
 }
@@ -403,6 +412,9 @@ int lsm_write_data(cls_method_context_t hctx, cls_lsm_append_entries_op& op)
                 return ret;
             }
         }
+
+        // update the tree_config now that all data is written
+        lsm_write_tree_config(hctx, tree_config);
     } else {
         // compaction
     }
@@ -428,8 +440,9 @@ int lsm_write_root_node(cls_method_context_t hctx, cls_lsm_tree_config& tree_con
 
     // then we will write the data into the object
     auto ret = cls_cxx_write2(hctx, tree_config.data_end_offset, bl.length(), &bl, CEPH_OSD_OP_FLAG_FADVISE_WILLNEED);
+    CLS_LOG(1, "finished writing data into the node");
     if (ret < 0) {
-        CLS_LOG(5, "ERROR: lsm_write_root_node: failed to write lsm root node");
+        CLS_LOG(1, "ERROR: lsm_write_root_node: failed to write lsm root node");
         return ret;
     }
 
@@ -510,12 +523,13 @@ int lsm_append_entries(cls_method_context_t hctx, cls_lsm_append_entries_op& op,
         head.size++; 
     }
 
-    return lsm_write_node_head(hctx, head);
+    return lsm_write_node_head(hctx, head);*/
+    return 0;
 }
 
 int lsm_compact_node(cls_method_context_t hctx, cls_lsm_append_entries_op& op, cls_lsm_node_head& head)
 {
-    auto ret = cls_cxx_scatter_wait_for_completions(hctx);
+    /*auto ret = cls_cxx_scatter_wait_for_completions(hctx);
     if (ret == -EAGAIN) {
         std::map<std::string, cls_lsm_append_entries_op> tgt_objs;
         std::vector<cls_lsm_entry> all_src;

@@ -30,7 +30,7 @@ constexpr unsigned int LSM_NODE_START = 0xDEAD;
 constexpr unsigned int LSM_NODE_OVERHEAD = sizeof(uint16_t) + sizeof(uint64_t);
 constexpr unsigned int LSM_ENTRY_START = 0xBEEF;
 constexpr unsigned int LSM_PER_KEY_OVERHEAD = sizeof(uint64_t) * 3;
-constexpr unsigned int CHUNK_SIZE = 4096;
+constexpr unsigned int CHUNK_SIZE = 102400;
 
 // key range
 struct cls_lsm_key_range
@@ -121,7 +121,7 @@ WRITE_CLASS_ENCODER(cls_lsm_marker)
 // key-value format; value is a map of "column name -> bufferlist"
 struct cls_lsm_entry
 {
-    std::string key;
+    uint64_t key;
     std::map<std::string, ceph::buffer::list> value;
     
     void encode(ceph::buffer::list& bl) const {
