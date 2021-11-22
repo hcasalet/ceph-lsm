@@ -42,7 +42,6 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
     if (r < 0)
         return r;
 
-    std::cout << "peaches " << endl;
     cls_lsm_get_entries_ret ret;
     auto iter = out.cbegin();
     try {
@@ -58,12 +57,12 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
 
 void cls_lsm_write(librados::ObjectWriteOperation& op,
                 const std::string& oid,
-                std::map<uint64_t, bufferlist> bl_data_map)
+                std::vector<cls_lsm_entry> entries)
 {
     bufferlist in;
     cls_lsm_append_entries_op call;
     call.tree_name = oid;
-    call.bl_data_map = std::move(bl_data_map);
+    call.entries = std::move(entries);
     encode(call, in);
     op.exec(LSM_CLASS, LSM_WRITE_NODE, in);
 }

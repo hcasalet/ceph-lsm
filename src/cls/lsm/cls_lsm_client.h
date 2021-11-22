@@ -48,6 +48,6 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
  */
 void cls_lsm_write(librados::ObjectWriteOperation& op,
                 const std::string& oid,
-                std::map<uint64_t, bufferlist> bl_data_map);
+                std::vector<cls_lsm_entry> entries);
 
 #endif

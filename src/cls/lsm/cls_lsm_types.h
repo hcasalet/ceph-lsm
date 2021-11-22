@@ -196,7 +196,7 @@ struct cls_lsm_tree_config
     uint64_t    size;
     uint64_t    per_node_capacity;
     std::vector<bool> bloomfilter_store_all{std::vector<bool>(BLOOM_FILTER_STORE_SIZE_256K, false)};
-    std::vector<bool> bloomfilter_store_root{std::vector<bool>(BLOOM_FILTER_STORE_SIZE_64K, false)};
+    std::vector<bool> bloomfilter_store_root{std::vector<bool>(BLOOM_FILTER_STORE_SIZE_256K, false)};
     uint64_t    data_start_offset;
     uint64_t    data_end_offset;
 

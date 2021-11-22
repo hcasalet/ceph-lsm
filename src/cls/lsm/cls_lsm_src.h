@@ -28,7 +28,7 @@ int lsm_read_node(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm
 /**
  * Read rows first from a tree's root node. 
  */
-int lsm_read_from_root(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret);
+int lsm_read_from_root(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret, std::vector<uint64_t>& found_keys_all);
 
 /**
  * function to read the header info of any lsm tree node on level 1 or higher
@@ -38,7 +38,7 @@ int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head);
 /**
  * function to read the data entries stored in an object
  */
-int lsm_get_entries(cls_method_context_t hctx, cls_lsm_tree_config& tree, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret);
+int lsm_get_entries(cls_method_context_t hctx, cls_lsm_tree_config& tree, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret, std::vector<uint64_t>& found_keys);
 
 /**
  * function to write data entries into the system
@@ -48,7 +48,7 @@ int lsm_write_data(cls_method_context_t hctx, cls_lsm_append_entries_op& op);
 /**
  * 
  */
-int lsm_write_root_node(cls_method_context_t hctx, cls_lsm_tree_config& tree_config, uint64_t key, bufferlist bl_data);
+int lsm_write_root_node(cls_method_context_t hctx, cls_lsm_tree_config& tree_config, cls_lsm_entry entry);
 
 /**
  * function to write the header info of any lsm tree node which is on level 1 or higher
@@ -78,6 +78,6 @@ int lsm_get_child_object_names(cls_lsm_node_head& head, cls_lsm_get_entries_op& 
 /**
  * function to check if a node has the key being looked for or not
  */
-int lsm_check_if_key_exists(std::vector<bool> bloomfilter_store, cls_lsm_get_entries_op& op);
+int lsm_check_if_key_exists(std::vector<bool> bloomfilter_store, cls_lsm_get_entries_op& op, std::vector<uint64_t>& found_keys);
 
 #endif /* CEPH_CLS_LSM_SRC_H */

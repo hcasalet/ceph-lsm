@@ -32,15 +32,21 @@ protected:
             int number_of_elems,
             int expected_rc) {
         ObjectWriteOperation op;
-        std::map<uint64_t, bufferlist> bl_map;
+        std::vector<cls_lsm_entry> bl_entries;
         for (auto i = 0; i < number_of_elems; ++i) {
+            cls_lsm_entry entry;
+            const std::string col_name("col"+to_string(i+1));
+
             bufferlist bl;
-            encode(i+1, bl);
             const std::string element_prefix("op-" +to_string(i+1) + "-element-");
             encode(element_prefix, bl);
-            bl_map.insert(std::pair<uint64_t, bufferlist>(std::hash<std::string>{}(to_string(i+1)), bl));
+
+            entry.key = std::hash<std::string>{}(to_string(i+1));
+            entry.value.insert(std::pair<std::string, bufferlist>(col_name, bl));
+
+            bl_entries.push_back(entry);
         }
-        cls_lsm_write(op, tree_name, bl_map);
+        cls_lsm_write(op, tree_name, bl_entries);
         ASSERT_EQ(expected_rc, ioctx.operate(tree_name, &op));
     }
 };
@@ -102,6 +108,8 @@ TEST_F(TestClsLsm, Read) {
     keys.push_back(std::hash<std::string>{}(to_string(3)));
     keys.push_back(std::hash<std::string>{}(to_string(4)));
     keys.push_back(std::hash<std::string>{}(to_string(5)));
+    keys.push_back(std::hash<std::string>{}(to_string(15)));
+    keys.push_back(std::hash<std::string>{}(to_string(17)));
 
     auto total_elements = 0;
     std::vector<cls_lsm_entry> entries;

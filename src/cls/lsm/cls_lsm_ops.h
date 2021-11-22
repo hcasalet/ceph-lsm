@@ -45,21 +45,22 @@ WRITE_CLASS_ENCODER(cls_lsm_init_op)
 
 struct cls_lsm_append_entries_op {
     std::string tree_name;
-    std::map<uint64_t, ceph::buffer::list> bl_data_map;
+    std::vector<cls_lsm_entry> entries;
+    //std::map<uint64_t, ceph::buffer::list> bl_data_map;
 
     cls_lsm_append_entries_op() {}
 
     void encode (ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
         encode(tree_name, bl);
-        encode(bl_data_map, bl);
+        encode(entries, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
         decode(tree_name, bl);
-        decode(bl_data_map, bl);
+        decode(entries, bl);
         DECODE_FINISH(bl);
     }
 };
