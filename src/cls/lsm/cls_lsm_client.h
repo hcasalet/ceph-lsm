@@ -22,7 +22,7 @@ void cls_lsm_init(librados::ObjectWriteOperation& op,
                 std::vector<uint64_t>& key_range,
                 uint64_t fan_out,
                 uint64_t max_capacity,
-                std::vector<std::string>& columns);
+                std::vector<std::set<std::string>>& columns);
 
 /**
  * Read API

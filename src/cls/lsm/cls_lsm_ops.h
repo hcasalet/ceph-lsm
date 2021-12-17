@@ -13,7 +13,7 @@ struct cls_lsm_init_op {
     cls_lsm_key_range key_range;
     uint64_t fan_out;
     uint64_t max_capacity;
-    std::vector<std::string> all_columns;
+    std::vector<std::set<std::string>> all_column_splits;
 
     cls_lsm_init_op() {}
 
@@ -25,7 +25,7 @@ struct cls_lsm_init_op {
         encode(key_range, bl);
         encode(fan_out, bl);
         encode(max_capacity, bl);
-        encode(all_columns, bl);
+        encode(all_column_splits, bl);
         ENCODE_FINISH(bl);
     }
 
@@ -37,7 +37,7 @@ struct cls_lsm_init_op {
         decode(key_range, bl);
         decode(fan_out, bl);
         decode(max_capacity, bl);
-        decode(all_columns, bl);
+        decode(all_column_splits, bl);
         DECODE_FINISH(bl);
     }
 };
@@ -87,6 +87,25 @@ struct cls_lsm_get_entries_op {
     }
 };
 WRITE_CLASS_ENCODER(cls_lsm_get_entries_op)
+
+struct cls_lsm_column_groups_name_ret {
+    std::set<int> column_groups;
+
+    cls_lsm_column_groups_name_ret() {}
+
+    void encode(ceph::buffer::list& bl) const {
+        ENCODE_START(1, 1, bl);
+        encode(column_groups, bl);
+        ENCODE_FINISH(bl);
+    }
+
+    void decode(ceph::buffer::list::const_iterator& bl) {
+        DECODE_START(1, bl);
+        decode(column_groups, bl);
+        DECODE_FINISH(bl);
+    }
+};
+WRITE_CLASS_ENCODER(cls_lsm_column_groups_name_ret)
 
 struct cls_lsm_get_entries_ret {
     std::vector<cls_lsm_entry> entries;

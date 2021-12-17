@@ -11,7 +11,7 @@ void cls_lsm_init(librados::ObjectWriteOperation& op,
                 std::vector<uint64_t>& key_range,
                 uint64_t fan_out, 
                 uint64_t max_capacity,
-                std::vector<std::string>& columns)
+                std::vector<std::set<std::string>>& columns)
 {
     bufferlist in;
     cls_lsm_init_op call;
@@ -20,9 +20,10 @@ void cls_lsm_init(librados::ObjectWriteOperation& op,
     call.levels = levels;
     call.key_range.low_bound = key_range[0];
     call.key_range.high_bound = key_range[1];
+    call.key_range.splits = key_range[2];
     call.fan_out = fan_out;
     call.max_capacity = max_capacity;
-    call.all_columns = columns;
+    call.all_column_splits = columns;
     encode(call, in);
     op.exec(LSM_CLASS, LSM_INIT, in);
 }

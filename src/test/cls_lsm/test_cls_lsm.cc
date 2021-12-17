@@ -38,10 +38,10 @@ protected:
             const std::string col_name("col"+to_string(i+1));
 
             bufferlist bl;
-            const std::string element_prefix("op-" +to_string(i+1) + "-element-");
+            const std::string element_prefix("op-" +to_string(i+6) + "-element-");
             encode(element_prefix, bl);
 
-            entry.key = std::hash<std::string>{}(to_string(i+1));
+            entry.key = std::hash<std::string>{}(to_string(i+6));
             entry.value.insert(std::pair<std::string, bufferlist>(col_name, bl));
 
             bl_entries.push_back(entry);
@@ -93,23 +93,39 @@ TEST_F(TestClsLsm, Read) {
     std::vector<uint64_t> key_range;
     key_range.push_back(1);
     key_range.push_back(100);
-    std::vector<std::string> cols;
-    cols.push_back("c1");
-    cols.push_back("c2");
-    cols.push_back("c3");
-    cols.push_back("c4");
-    cls_lsm_init(op, pool_name, tree_name, 5, key_range, 8, 100, cols);
+    key_range.push_back(10);
+    
+    std::vector<std::set<std::string>> col_grps;
+    std::set<std::string> cols1;
+    cols1.insert("c1");
+    cols1.insert("c2");
+    cols1.insert("c3");
+    cols1.insert("c4");
+    col_grps.push_back(cols1);
+
+    std::set<std::string> cols2;
+    cols2.insert("c1");
+    cols2.insert("c2");
+    cols2.insert("c3");
+    cols2.insert("c4");
+    col_grps.push_back(cols2);
+
+    cls_lsm_init(op, pool_name, tree_name, 5, key_range, 8, 100, col_grps);
     ASSERT_EQ(0, ioctx.operate(tree_name, &op));
 
     // test write: 100 elelemts each, expecting 0 (OK)
     test_write(tree_name, 10, 0);
 
     std::vector<uint64_t> keys;
-    keys.push_back(std::hash<std::string>{}(to_string(3)));
-    keys.push_back(std::hash<std::string>{}(to_string(4)));
     keys.push_back(std::hash<std::string>{}(to_string(5)));
+    keys.push_back(std::hash<std::string>{}(to_string(9)));
+    keys.push_back(std::hash<std::string>{}(to_string(12)));
     keys.push_back(std::hash<std::string>{}(to_string(15)));
     keys.push_back(std::hash<std::string>{}(to_string(17)));
+
+    std::vector<std::string> cols;
+    cols.push_back("c2");
+    cols.push_back("c3");
 
     auto total_elements = 0;
     std::vector<cls_lsm_entry> entries;
