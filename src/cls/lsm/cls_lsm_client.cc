@@ -50,9 +50,43 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
     } catch (buffer::error& err) {
         return -EIO;
     }
-
     entries = std::move(ret.entries);
 
+    std::map<std::string, std::vector<uint64_t>> src_objs_map;
+    try {
+        decode(src_objs_map, iter);
+    } catch (buffer::error& err) {
+        return -EIO;
+    }
+
+    while (src_objs_map.size() > 0) {
+        in.clear();
+        out.clear();
+        encode(src_objs_map, in);
+        encode(op.columns, in);
+
+        r = io_ctx.exec(oid, LSM_CLASS, LSM_READ_FROM_INTERNAL_NODES, in, out);
+        if (r < 0) 
+            return r;
+
+        auto iter_int = out.cbegin();
+
+        cls_lsm_get_entries_ret_int ret_int;
+        try {
+            decode(ret_int, iter_int);
+        } catch (buffer::error& err) {
+            return -EIO;
+        }
+        entries.insert(entries.end(), ret_int.entries.begin(), ret_int.entries.end());
+
+        src_objs_map.clear();
+        try {
+            decode(src_objs_map, iter_int);
+        } catch (buffer::error& err) {
+            return -EIO;
+        }
+    }
+    
     return 0;
 }
 

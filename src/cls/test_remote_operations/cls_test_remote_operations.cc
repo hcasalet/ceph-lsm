@@ -18,7 +18,7 @@ cls_method_handle_t h_test_gather;
  * read data
  */
 static int test_read(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
-  int r = cls_cxx_read(hctx, 0, 0, out);
+  int r = cls_cxx_read(hctx, 0, 4096, out);
   if (r < 0) {
     CLS_ERR("%s: error reading data", __PRETTY_FUNCTION__);
     return r;
@@ -118,14 +118,17 @@ static int test_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     std::set<std::string> src_objects;
     for (auto it = src_objects_v.begin(); it != src_objects_v.end(); it++) {
       std::string oid_without_double_quotes = it->substr(1, it->size()-2);
+      CLS_LOG(1, "Ken remote read: %s", oid_without_double_quotes.c_str());
       src_objects.insert(oid_without_double_quotes);
     }
+    src_objects.insert("src_object.4");
     r = cls_cxx_gather(hctx, src_objects, pool, cls.c_str(), method.c_str(), *in);
   } else {
     // write data gathered using remote reads
     int offset = 0;
     for (std::map<std::string, bufferlist>::iterator it = src_obj_buffs.begin(); it != src_obj_buffs.end(); it++) {
       bufferlist bl= it->second;
+      CLS_LOG(1, "Ken wrote %lu", bl.length());
       r = cls_cxx_write(hctx, offset, bl.length(), &bl);
       offset += bl.length();
     }

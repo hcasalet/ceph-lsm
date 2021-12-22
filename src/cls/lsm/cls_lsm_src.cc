@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <unistd.h>
 
 #include "include/types.h"
 #include "objclass/objclass.h"
@@ -155,7 +156,7 @@ int lsm_write_tree_config(cls_method_context_t hctx, cls_lsm_tree_config& tree)
 /**
  * Read rows whose key matching "keys" (returning only asked columns)
  */
-int lsm_read_data(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret)
+int lsm_read_data(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret, std::map<std::string, std::vector<uint64_t>> src_objs_map)
 {
     // Reading the items from the level-0 node. lsm_read_from_root returns ret as the number of 
     // rows that exist in the system. When ret equals 0, it means the keys are not found in the
@@ -183,7 +184,7 @@ int lsm_read_data(cls_method_context_t hctx, cls_lsm_get_entries_op& op, cls_lsm
 
     // If we come here, it means that there are still keys that exist below level 0 root 
     // object, so we have to keep looking for them
-    ret = lsm_read_from_below_level_0(hctx, tree.key_range, tree.all_column_splits, tree.tree_name, tree.pool, op, op_ret);
+    ret = lsm_read_from_below_level_0(hctx, tree.key_range, tree.all_column_splits, tree.tree_name, tree.pool, op, op_ret, src_objs_map);
     if (ret < 0) {
         return ret;
     }
@@ -242,13 +243,13 @@ int lsm_read_entries_from_root(cls_method_context_t hctx, bufferlist *bl_chunk, 
     uint64_t size_to_process = bl_chunk->length();
     if (size_to_process <= 0) {
         CLS_LOG(1, "INFO: no data entries in object");
-        return -ENODATA;
+    } else {
+        auto ret = lsm_get_entries(bl_chunk, found_keys, op_ret);
+        if (ret < 0) {
+            return ret;
+        }
     }
-    auto ret = lsm_get_entries(hctx, bl_chunk, found_keys, op_ret);
-    if (ret < 0) {
-        return ret;
-    }
-
+    
     return 0;
 }
 
@@ -256,11 +257,13 @@ int lsm_read_entries_from_root(cls_method_context_t hctx, bufferlist *bl_chunk, 
  * read from object below level 0 (non-root objects)
  */
 int lsm_read_from_below_level_0(cls_method_context_t hctx, cls_lsm_key_range& key_range, std::vector<std::set<std::string>> column_splits,
-                                std::string parent_id, std::string pool, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret)
+                                std::string parent_id, std::string pool, cls_lsm_get_entries_op& op, cls_lsm_get_entries_ret& op_ret,
+                                std::map<std::string, std::vector<uint64_t>> src_objs_map)
 {
     uint64_t lowbound = key_range.low_bound;
     uint64_t highbound = key_range.high_bound;
-    uint64_t increment = (key_range.high_bound - key_range.low_bound) / key_range.splits;
+    uint64_t increment = (key_range.high_bound - key_range.low_bound) / key_range.splits + 1;
+
     std::vector<std::vector<uint64_t>> key_groups(key_range.splits);
     for (auto key : op.keys) {
         if (key < lowbound || key > highbound) {
@@ -273,48 +276,51 @@ int lsm_read_from_below_level_0(cls_method_context_t hctx, cls_lsm_key_range& ke
     }
 
     std::set<uint16_t> col_grps;
-    lsm_get_column_groups(hctx, op, column_splits, col_grps);
-
+    lsm_get_column_groups(op.columns, column_splits, col_grps);
     for (uint64_t i = 0; i < key_groups.size(); i++) {
         if (key_groups[i].size() > 0) {
-            std::set<std::string> object_ids;
             for (auto col_grp : col_grps) {
-                std::string child_name = parent_id+"/"+"kr-"+to_string(i+1)+"cg-"+to_string(col_grp);
-                object_ids.insert(child_name);
-            }
-
-            bufferlist keys_bl;
-            cls_lsm_get_entries_op child_entries_op;
-            child_entries_op.keys = key_groups[i];
-            child_entries_op.columns = op.columns;
-            encode(child_entries_op, keys_bl);
-
-            auto ret = cls_cxx_gather(hctx, object_ids, pool, LSM_CLASS, LSM_READ_FROM_INTERNAL_NODES, keys_bl);
-            if (ret < 0) {
-                CLS_LOG(1, "ERROR: failed at remote read in cls_read_from_below_level_0");
-                return ret;
-            }
-
-            std::map<std::string, bufferlist> src_obj_buffs;
-            ret = cls_cxx_get_gathered_data(hctx, &src_obj_buffs);
-            if (!src_obj_buffs.empty()) {
-                for (std::map<std::string, bufferlist>::iterator it = src_obj_buffs.begin(); it != src_obj_buffs.end(); it++) {
-                    bufferlist bl= it->second;
-                    auto itr = bl.cbegin();
-                    std::vector<cls_lsm_entry> entries;
-                    try {
-                        decode(entries, itr);
-                    } catch (const ceph::buffer::error& err) {
-                        CLS_LOG(1, "ERROR: lsm_read_from_below_level_0: failed to decode entry: %s", err.what());
-                        return -EINVAL;
-                    }
-                    op_ret.entries.insert(op_ret.entries.end(), entries.begin(), entries.end());
-                }
+                std::string child_name = parent_id+"/"+"kr-"+to_string(i+1)+":cg-"+to_string(col_grp);
+                src_objs_map[child_name] = key_groups[i];
             }
         }
     }
     
     return 0;
+}
+
+/**
+ * Get Child object ids
+ */
+int lsm_get_child_object_ids(cls_lsm_node_head head, std::vector<uint64_t> keys, std::vector<std::string>& cols, std::map<std::string, std::vector<uint64_t>> src_objs_map)
+{
+    std::set<uint16_t> col_grps
+    lsm_get_column_groups(cols, head.column_group_splits, col_grps);
+
+    std::vector<std::vector<uint64_t>> key_groups(head.key_range.splits);
+    uint64_t increment = (head.key_range.high_bound - head.key_range.high_bound) / head.key_range.splits + 1;
+    for (auto key : keys) {
+        uint64_t low = head.key_range.low_bound;
+        uint64_t high = low + increment;
+
+        for (int i = 0; i < head.key_range.splits; i++) {
+            if (key >= low && key < high) {
+                key_groups[i].push_back(key);
+                break;
+            }
+            low = high;
+            high = low + increment;
+        }
+    }
+
+    for (int i = 0; i < head.key_range.splits; i++) {
+        if (key_groups[i].size() > 0) {
+            for (auto col_grp : col_grps) {
+                std::string object_id = head.my_object_id + "/kr-" + to_string(i+1) + ":cg-" + to_string(col_grp);
+                src_objs_map[object_id] = key_groups[i];
+            }  
+        }
+    }
 }
 
 /**
@@ -326,6 +332,7 @@ int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
 
     bufferlist bl_head;
     const auto ret = cls_cxx_read(hctx, start_offset, read_size, &bl_head);
+    CLS_LOG(1, "santa cruz read node head %u", ret);
     if (ret < 0) {
         CLS_LOG(1, "ERROR: lsm_read_node_head: failed read lsm node head");
         return ret;
@@ -399,21 +406,21 @@ int lsm_check_if_key_exists(std::vector<bool> bloomfilter_store, std::vector<uin
 /**
 * get column group numbers for children objects for a read query
 */
-int lsm_get_column_groups(cls_method_context_t hctx, cls_lsm_get_entries_op& op, std::vector<std::set<std::string>>& column_group_splits, std::set<uint16_t>& col_grps)
+int lsm_get_column_groups(std::vector<std::string>& cols, std::vector<std::set<std::string>>& column_group_splits, std::set<uint16_t>& col_grps)
 {
     if (col_grps.size() > 0) {
         CLS_LOG(1, "Error: there was data in column groups to return");
         return -EINVAL;
     }
 
-    for (auto col : op.columns) {
+    for (auto col : cols) {
         if (col_grps.size() == column_group_splits.size()) {
             break;
         }
 
         for (uint64_t i = 0; i < column_group_splits.size(); i++) {
             if (column_group_splits[i].find(col) != column_group_splits[i].end()) {
-                col_grps.insert(i);
+                col_grps.insert(i+1);
                 break;
             }
         }
@@ -425,7 +432,7 @@ int lsm_get_column_groups(cls_method_context_t hctx, cls_lsm_get_entries_op& op,
 /**
  * Read all entries from object
  */
-int lsm_get_entries(cls_method_context_t hctx, bufferlist *in, std::vector<uint64_t>& read_keys, cls_lsm_get_entries_ret& op_ret)
+int lsm_get_entries(bufferlist *in, std::vector<uint64_t>& read_keys, cls_lsm_get_entries_ret& op_ret)
 {
     bool read_all = true;
     if (!read_keys.empty()) {
@@ -513,9 +520,6 @@ int lsm_write_data(cls_method_context_t hctx, cls_lsm_append_entries_op& op)
             }
         }
 
-        // update the tree_config now that all data is written
-        lsm_write_tree_config(hctx, tree_config);
-
     } else {
         // first read in what the root node has
         bufferlist bl_chunk;
@@ -533,8 +537,11 @@ int lsm_write_data(cls_method_context_t hctx, cls_lsm_append_entries_op& op)
 
         // split the entries for level-1 objects
         std::vector<std::vector<cls_lsm_entry>> entries_splits(tree_config.key_range.splits);
-        uint64_t increment = (tree_config.key_range.high_bound - tree_config.key_range.low_bound) / tree_config.key_range.splits;
+        uint64_t increment = (tree_config.key_range.high_bound - tree_config.key_range.low_bound) / tree_config.key_range.splits + 1;
         for (auto entry : entries) {
+            // update the bloomfilter store in level 0 so the key is kept in the system
+            lsm_bloomfilter_insert(tree_config.bloomfilter_store_all, to_string(entry.key));
+
             uint64_t low = tree_config.key_range.low_bound;
             for (int i = 0; i < tree_config.key_range.splits; i++) {
                 uint64_t high = low + increment;
@@ -549,42 +556,48 @@ int lsm_write_data(cls_method_context_t hctx, cls_lsm_append_entries_op& op)
         // compacting to level-1 objects. Level-1 is pure row based
         std::map<std::string, bufferlist> tgt_child_objects;
         for (uint64_t i=0; i < entries_splits.size(); i++) {
-            for (uint64_t j = 0; j < tree_config.all_column_splits.size(); j++) {
-                std::string child_name = tree_config.tree_name+"/"+"kr-"+to_string(i+1)+"cg-"+to_string(j+1);
-                bufferlist bl_data;
-                encode(child_name, bl_data);
+            if (entries_splits[i].size() > 0) {
+                for (uint64_t j = 0; j < tree_config.all_column_splits.size(); j++) {
+                    std::string child_name = tree_config.tree_name+"/"+"kr-"+to_string(i+1)+":cg-"+to_string(j+1);
+                    bufferlist bl_data;
+                    encode(child_name, bl_data);
 
-                uint64_t child_level = 1;
-                encode(child_level, bl_data);
+                    uint64_t child_level = 1;
+                    encode(child_level, bl_data);
 
-                cls_lsm_key_range child_key_range;
-                child_key_range.low_bound = tree_config.key_range.low_bound + i * increment;
-                child_key_range.high_bound = child_key_range.low_bound + increment;
-                child_key_range.splits = tree_config.key_range.splits;
-                encode(child_key_range, bl_data);
+                    cls_lsm_key_range child_key_range;
+                    child_key_range.low_bound = tree_config.key_range.low_bound + i * increment;
+                    child_key_range.high_bound = child_key_range.low_bound + increment;
+                    child_key_range.splits = tree_config.key_range.splits;
+                    encode(child_key_range, bl_data);
 
-                uint64_t node_capacity = tree_config.per_node_capacity;
-                encode(node_capacity, bl_data);
+                    uint64_t node_capacity = tree_config.per_node_capacity;
+                    encode(node_capacity, bl_data);
 
-                std::vector<std::set<std::string>> child_column_group_splits =
-                        lsm_make_column_group_splits_for_children(tree_config.all_column_splits[j], LSM_COLUMN_SPLIT_FACTOR);
-                encode(child_column_group_splits, bl_data);
+                    std::vector<std::set<std::string>> child_column_group_splits =
+                            lsm_make_column_group_splits_for_children(tree_config.all_column_splits[j], LSM_COLUMN_SPLIT_FACTOR);
+                    encode(child_column_group_splits, bl_data);
 
-                std::vector<cls_lsm_entry> child_entries =
-                        lsm_make_data_entries_for_children(entries_splits[i], tree_config.all_column_splits[j]);
-                encode(child_entries, bl_data);
+                    std::vector<cls_lsm_entry> child_entries =
+                            lsm_make_data_entries_for_children(entries_splits[i], tree_config.all_column_splits[j]);
+                    encode(child_entries, bl_data);
 
-                tgt_child_objects[child_name] = bl_data;
+                    tgt_child_objects[child_name] = bl_data;
+                }
             }
         }
-        ret = cls_cxx_scatter(hctx, tgt_child_objects, tree_config.pool, LSM_CLASS, LSM_WRITE_TO_INTERNAL_NODE, bl_chunk);
+        ret = cls_cxx_scatter(hctx, tgt_child_objects, tree_config.pool, LSM_CLASS, LSM_WRITE_TO_INTERNAL_NODES, bl_chunk);
 
         ret = cls_cxx_scatter_wait_for_completions(hctx);
         if (ret != 0) {
             CLS_LOG(1, "ERROR: lsm_write_data - failed to remote write");
             return ret;
         }
+
     }
+
+    // update the tree_config now that all data is written
+    lsm_write_tree_config(hctx, tree_config);
 
     return 0;
 }
@@ -740,7 +753,7 @@ int lsm_compact_node(cls_method_context_t hctx, std::vector<cls_lsm_entry>& entr
     }
 
     bufferlist bl_chunk; 
-    auto ret = cls_cxx_scatter(hctx, tgt_child_objects, head.pool, LSM_CLASS, LSM_WRITE_TO_INTERNAL_NODE, bl_chunk);
+    auto ret = cls_cxx_scatter(hctx, tgt_child_objects, head.pool, LSM_CLASS, LSM_WRITE_TO_INTERNAL_NODES, bl_chunk);
 
     ret = cls_cxx_scatter_wait_for_completions(hctx);
     if (ret != 0) {

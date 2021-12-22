@@ -92,7 +92,7 @@ TEST_F(TestClsLsm, Read) {
     op.create(true);
     std::vector<uint64_t> key_range;
     key_range.push_back(1);
-    key_range.push_back(100);
+    key_range.push_back((size_t)-1);
     key_range.push_back(10);
     
     std::vector<std::set<std::string>> col_grps;
@@ -104,24 +104,24 @@ TEST_F(TestClsLsm, Read) {
     col_grps.push_back(cols1);
 
     std::set<std::string> cols2;
-    cols2.insert("c1");
-    cols2.insert("c2");
-    cols2.insert("c3");
-    cols2.insert("c4");
+    cols2.insert("c5");
+    cols2.insert("c6");
+    cols2.insert("c7");
+    cols2.insert("c8");
     col_grps.push_back(cols2);
 
-    cls_lsm_init(op, pool_name, tree_name, 5, key_range, 8, 100, col_grps);
+    cls_lsm_init(op, pool_name, tree_name, 5, key_range, 8, 3, col_grps);
     ASSERT_EQ(0, ioctx.operate(tree_name, &op));
 
     // test write: 100 elelemts each, expecting 0 (OK)
-    test_write(tree_name, 10, 0);
+    test_write(tree_name, 1, 0);
 
     std::vector<uint64_t> keys;
-    keys.push_back(std::hash<std::string>{}(to_string(5)));
-    keys.push_back(std::hash<std::string>{}(to_string(9)));
-    keys.push_back(std::hash<std::string>{}(to_string(12)));
-    keys.push_back(std::hash<std::string>{}(to_string(15)));
-    keys.push_back(std::hash<std::string>{}(to_string(17)));
+    //keys.push_back(std::hash<std::string>{}(to_string(5)));
+    keys.push_back(std::hash<std::string>{}(to_string(6)));
+    //keys.push_back(std::hash<std::string>{}(to_string(12)));
+    //keys.push_back(std::hash<std::string>{}(to_string(15)));
+    //keys.push_back(std::hash<std::string>{}(to_string(17)));
 
     std::vector<std::string> cols;
     cols.push_back("c2");
@@ -134,4 +134,5 @@ TEST_F(TestClsLsm, Read) {
 
     total_elements += entries.size();
     ASSERT_EQ(total_elements, 3);
+    
 }

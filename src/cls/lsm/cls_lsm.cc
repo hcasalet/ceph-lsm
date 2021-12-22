@@ -2,10 +2,6 @@
 // Created by Holly Casaletto on 7/29/21.
 //
 
-// TO-DO: 
-// 1. cls_lsm_init_tree
-// 2. bloom filter
-
 #include "include/types.h"
 #include <errno.h>
 
@@ -85,53 +81,105 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
     }
 
     cls_lsm_get_entries_ret op_ret;
-    auto ret = lsm_read_data(hctx, op, op_ret);
+    std::map<std::string, std::vector<uint64_t>> src_objs_map;
+    auto ret = lsm_read_data(hctx, op, op_ret, src_objs_map);
     if (ret < 0) {
         return ret;
     }
-
     encode(op_ret, *out);
+    encode(src_objs_map, *out);
+       
     return 0;
 }
 
 /**
  * read data from an internal node
  */
-static int cls_lsm_read_from_internal_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int cls_lsm_read_from_internal_nodes(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     auto it = in->cbegin();
-    cls_lsm_get_entries_op op;
+    std::map<std::string, std::vector<uint64>> src_objs_map;
     try {
-        decode(op, it);
+        decode(src_objs_map, it);
     } catch (const ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: lsm_read_from_internal_nodes: failed to decode getting entries input: %s", err.what());
+        CLS_LOG(1, "ERROR: lsm_read_from_internal_nodes: failed to decode getting input src objects: %s", err.what());
         return -EINVAL;
     }
 
-    cls_lsm_node_head node_head;
-    auto ret = lsm_read_node_head(hctx, node_head);
+    std::set<std::string> src_objs;
+    for (std::map<std::string, std::vector<uint64_t>>::iterator it = src_objs_map.begin(); it != src_objs_map.end(); it++) {
+        src_objs.insert(it->first);
+    }
+
+    std::vector<std::string> cols;
+    try {
+        decode(cols, it);
+    } catch (const ceph::buffer::error& err) {
+        CLS_LOG(1, "ERROR: lsm_read_from_internal_nodes: failed to decode getting input get_entries_op: %s", err.what());
+        return -EINVAL;
+    }
+
+    cls_lsm_tree_config tree;
+    auto ret = lsm_read_tree_config(hctx, tree);
+
+    std::map<std::string, bufferlist> src_obj_buffs;
+    int r = cls_cxx_get_gathered_data(hctx, &src_obj_buffs);
+    if (src_obj_buffs.empty()) {
+        r = cls_cxx_gather(hctx, src_objs, tree.pool, LSM_CLASS, LSM_REMOTE_READ_NODE, *in);
+    } else {
+        cls_lsm_get_entries_ret op_ret_all;
+        std::map<std::string, std::vector<uint64_t>> child_src_objs_map;
+        for (std::map<std::string, bufferlist>::iterator it = src_obj_buffs.begin(); it != src_obj_buffs.end(); it++) {
+            bufferlist bl= it->second;
+
+            auto itr = bl.cbegin();
+
+            cls_lsm_node_head node_head;
+            try {
+                decode(node_head, itr);
+            } catch (const ceph::buffer::error& err) {
+                CLS_LOG(1, "ERROR: lsm_read_from_internal_nodes: failed to decode gathered data: %s", err.what());
+                return -EINVAL;
+            }
+
+            std::vector<uint64_t> found_keys;
+            auto ret = lsm_check_if_key_exists(node_head.bloomfilter_store, src_objs_map[it->first], found_keys);
+
+            if (found_keys.size() > 0) {
+                cls_lsm_get_entries_ret op_ret;
+                ret = lsm_get_entries(itr, found_keys, &op_ret);
+                op_ret_all.entries.insert(op_ret_all.entries.end(), op_ret.entries.begin(), op.ret.entries.end());
+            }
+
+            for (auto found_key : found_keys) {
+                src_objs_map[it->first].erase(std::remove(src_objs_map[it->first].begin(), src_objs_map[it->first].end(), found_key), src_objs_map[it->first].end());
+            }
+
+            if (src_objs_map[it->first].size() > 0) {
+                ret = lsm_get_child_object_ids(node_head, src_objs_map[it->first], cols, child_src_objs_map);
+                if (ret < 0) {
+                    CLS_LOG(1, "ERROR: cls_lsm_read_from_internal_nodes: failed to get child object ids");
+                    return ret;
+                }
+            }
+        }
+        encode(op_ret_all, *out);
+        encode(child_src_objs_map, *out);
+    }
+
+    return 0;
+}
+
+/**
+ * Remote read node
+ */
+int lsm_remote_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    ret = cls_cxx_read(hctx, 0, 0, out);
     if (ret < 0) {
+        CLS_LOG(1, "ERROR: lsm_remote_read_node: error reading data");
         return ret;
     }
-
-    std::vector<uint64_t> found_keys;
-    ret = lsm_check_if_key_exists(node_head.bloomfilter_store, op.keys, found_keys);
-    cls_lsm_get_entries_ret op_ret;
-    if (found_keys.size() >= op.keys.size()) {
-        bufferlist bl_chunk;
-        ret = cls_cxx_read(hctx, node_head.entry_start_offset, (node_head.entry_end_offset - node_head.entry_start_offset), &bl_chunk);
-
-        ret = lsm_get_entries(hctx, &bl_chunk, found_keys, op_ret);
-        encode(op_ret, *out);
-    } else {
-        for (auto key : found_keys) {
-            op.keys.erase(std::remove(op.keys.begin(), op.keys.end(), key), op.keys.end());
-        }
-
-        ret = lsm_read_from_below_level_0(hctx, node_head.key_range, node_head.column_group_splits, node_head.my_object_id,
-                                        node_head.pool, op, op_ret);
-    }
-
     return 0;
 }
 
@@ -173,7 +221,7 @@ int lsm_write_to_internal_nodes(cls_method_context_t hctx, bufferlist *in, buffe
         return -EINVAL;
     }
 
-    std::set<std::string> column_splits;
+    std::vector<std::set<std::string>> column_splits;
     try {
         decode(column_splits, itt);
     } catch (const ceph::buffer::error& err) {
@@ -193,8 +241,10 @@ int lsm_write_to_internal_nodes(cls_method_context_t hctx, bufferlist *in, buffe
     }
     if (new_entries.size() == 0) {
         CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed getting entries from the input");
+        return -ENODATA;
     }
 
+    CLS_LOG(1, "ocean : %lu", new_entries.size());
     // check if the object exists and if has data in it
     uint64_t read_size = CHUNK_SIZE, start_offset = 0;
     bufferlist bl_head;
@@ -203,6 +253,7 @@ int lsm_write_to_internal_nodes(cls_method_context_t hctx, bufferlist *in, buffe
         CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed checking if node exists");
         return ret;
     } else if (ret > 0) {
+        CLS_LOG(1, "water street!!!");
         auto it = bl_head.cbegin();
 
         // check node head start
@@ -279,7 +330,7 @@ int lsm_write_to_internal_nodes(cls_method_context_t hctx, bufferlist *in, buffe
         new_node_head.key_range = key_range;
         new_node_head.max_capacity = node_capacity;
         new_node_head.size = 0;
-        new_node_head.column_group_splits = lsm_make_column_group_splits_for_children(column_splits, LSM_COLUMN_SPLIT_FACTOR);
+        new_node_head.column_group_splits = column_splits;
         new_node_head.bloomfilter_store = std::vector<bool>(BLOOM_FILTER_STORE_SIZE_64K, false);
 
         bufferlist bl;
@@ -306,13 +357,17 @@ CLS_INIT(lsm)
     cls_method_handle_t h_lsm_write_node;
     cls_method_handle_t h_lsm_read_node;
     cls_method_handle_t h_lsm_read_from_internal_nodes;
+    cls_method_handle_t h_lsm_write_to_internal_nodes;
+    cls_method_handle_t h_lsm_remote_read_node;
 
     cls_register(LSM_CLASS, &h_class);
 
     cls_register_cxx_method(h_class, LSM_INIT, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_init, &h_lsm_init);
     cls_register_cxx_method(h_class, LSM_WRITE_NODE, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_write_node, &h_lsm_write_node);
     cls_register_cxx_method(h_class, LSM_READ_NODE, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_node, &h_lsm_read_node);
-    cls_register_cxx_method(h_class, LSM_READ_FROM_INTERNAL_NODES, CLS_METHOD_RD, cls_lsm_read_from_internal_node, &h_lsm_read_from_internal_nodes);
-    
+    cls_register_cxx_method(h_class, LSM_READ_FROM_INTERNAL_NODES, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_from_internal_nodes, &h_lsm_read_from_internal_nodes);
+    cls_register_cxx_method(h_class, LSM_WRITE_TO_INTERNAL_NODES, CLS_METHOD_RD | CLS_METHOD_WR, lsm_write_to_internal_nodes, &h_lsm_write_to_internal_nodes);
+    cls_register_cxx_method(h_class, LSM_REMOTE_READ_NODE, CLS_METHOD_RD | CLS_METHOD_WR, lsm_remote_read_node, &h_lsm_remote_read_node);
+
     return; 
 }
