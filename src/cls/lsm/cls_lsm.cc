@@ -33,7 +33,7 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
         return -EINVAL;
     }
 
-    // initialize only the level-0 node
+    // initialize only the root node
     auto ret = lsm_init(hctx, op);
     if (ret < 0) {
         return ret;
@@ -47,19 +47,32 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
  */ 
 static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    // first get the input
+    // get the write parameter
     auto iter = in->cbegin();
     cls_lsm_append_entries_op op;
     try {
         decode(op, iter);
     } catch (ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: cls_lsm_write_node: failed to decode input data \n");
+        CLS_LOG(1, "ERROR: cls_lsm_write_node: failed to decode input data");
         return -EINVAL;
     }
 
-    // Write the data
-    auto ret = lsm_write_data(hctx, op);
+    // read from root to prepare to write
+    cls_lsm_node_head root;
+    auto ret = lsm_read_node_head(hctx, root);
     if (ret < 0) {
+        CLS_LOG(1, "ERROR: cls_lsm_write_node: failed reading tree config");
+        return ret;
+    }
+
+    // write or write with compaction
+    if (root.size >= root.capacity*4/5) {
+        ret = lsm_write_with_compaction(hctx, root, op.entries);        
+    } else {
+        ret = lsm_write_one_node(hctx, root, entries)
+    }
+    if (ret < 0) {
+        CLS_LOG(1, "ERROR: cls_lsm_write_node: failed writing data");
         return ret;
     }
 
@@ -71,6 +84,7 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
  */
 static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
+    // getting the read parameter
     auto iter = in->cbegin();
     cls_lsm_get_entries_op op;
     try {
@@ -80,16 +94,39 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
         return -EINVAL;
     }
 
-    cls_lsm_get_entries_ret op_ret;
-    std::map<std::string, std::vector<uint64_t>> src_objs_map;
-    auto ret = lsm_read_data(hctx, op, op_ret, src_objs_map);
+    // read from root to check if data exists in root node
+    cls_lsm_node_head root;
+    auto ret = lsm_read_node_head(hctx, root);
     if (ret < 0) {
+        CLS_LOG(1, "ERROR: cls_lsm_write_node: failed reading tree config");
         return ret;
     }
-    encode(op_ret, *out);
-    encode(src_objs_map, *out);
-       
-    return 0;
+
+    // check if keys exist in the entire system at all
+    std::vector<uint64_t> keys_in_system;
+    lsm_check_if_key_exists(root.bloomfilter_store_ever, op.keys, keys_in_system);
+    if (keys_in_system.size() == 0) {
+        CLS_LOG(1, "INFO: keys to read do not exist in the system");
+        return 0;
+    }
+
+    // check if the root node has the keys
+    std::vector<uint64_t> keys_in_root;
+    lsm_check_if_key_exists(root.bloomfilter_store, op.keys, keys_in_root);
+
+    // get the entries from the object
+    op.keys.clear();
+    cls_lsm_get_entries_ret op_ret;
+    if (keys_in_root.size() == keys_in_system.size()) {
+        op.keys.insert(op.keys.end(), keys_in_root.begin(), keys_in_root.end());
+        ret = lsm_read_data(hctx, root, keys_in_root, op_ret);
+    } else {
+        op.keys.insert(op.keys.end(), keys_in_system.begin(), keys_in_system.end());
+        ret = lsm_read_with_gathering(hctx, root, op, op_ret);
+    }
+
+    encode(op_ret, *out); 
+    return ret;
 }
 
 /**
@@ -98,88 +135,26 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
 static int cls_lsm_read_from_internal_nodes(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     auto it = in->cbegin();
-    std::map<std::string, std::vector<uint64>> src_objs_map;
+    std::map<std::string, std::vector<uint64_t>> child_read_input;
     try {
-        decode(src_objs_map, it);
+        decode(child_read_input, it);
     } catch (const ceph::buffer::error& err) {
         CLS_LOG(1, "ERROR: lsm_read_from_internal_nodes: failed to decode getting input src objects: %s", err.what());
         return -EINVAL;
     }
 
-    std::set<std::string> src_objs;
-    for (std::map<std::string, std::vector<uint64_t>>::iterator it = src_objs_map.begin(); it != src_objs_map.end(); it++) {
-        src_objs.insert(it->first);
-    }
-
-    std::vector<std::string> cols;
-    try {
-        decode(cols, it);
-    } catch (const ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: lsm_read_from_internal_nodes: failed to decode getting input get_entries_op: %s", err.what());
-        return -EINVAL;
-    }
-
-    cls_lsm_tree_config tree;
-    auto ret = lsm_read_tree_config(hctx, tree);
-
-    std::map<std::string, bufferlist> src_obj_buffs;
-    int r = cls_cxx_get_gathered_data(hctx, &src_obj_buffs);
-    if (src_obj_buffs.empty()) {
-        r = cls_cxx_gather(hctx, src_objs, tree.pool, LSM_CLASS, LSM_REMOTE_READ_NODE, *in);
-    } else {
-        cls_lsm_get_entries_ret op_ret_all;
-        std::map<std::string, std::vector<uint64_t>> child_src_objs_map;
-        for (std::map<std::string, bufferlist>::iterator it = src_obj_buffs.begin(); it != src_obj_buffs.end(); it++) {
-            bufferlist bl= it->second;
-
-            auto itr = bl.cbegin();
-
-            cls_lsm_node_head node_head;
-            try {
-                decode(node_head, itr);
-            } catch (const ceph::buffer::error& err) {
-                CLS_LOG(1, "ERROR: lsm_read_from_internal_nodes: failed to decode gathered data: %s", err.what());
-                return -EINVAL;
-            }
-
-            std::vector<uint64_t> found_keys;
-            auto ret = lsm_check_if_key_exists(node_head.bloomfilter_store, src_objs_map[it->first], found_keys);
-
-            if (found_keys.size() > 0) {
-                cls_lsm_get_entries_ret op_ret;
-                ret = lsm_get_entries(itr, found_keys, &op_ret);
-                op_ret_all.entries.insert(op_ret_all.entries.end(), op_ret.entries.begin(), op.ret.entries.end());
-            }
-
-            for (auto found_key : found_keys) {
-                src_objs_map[it->first].erase(std::remove(src_objs_map[it->first].begin(), src_objs_map[it->first].end(), found_key), src_objs_map[it->first].end());
-            }
-
-            if (src_objs_map[it->first].size() > 0) {
-                ret = lsm_get_child_object_ids(node_head, src_objs_map[it->first], cols, child_src_objs_map);
-                if (ret < 0) {
-                    CLS_LOG(1, "ERROR: cls_lsm_read_from_internal_nodes: failed to get child object ids");
-                    return ret;
-                }
-            }
-        }
-        encode(op_ret_all, *out);
-        encode(child_src_objs_map, *out);
-    }
-
-    return 0;
-}
-
-/**
- * Remote read node
- */
-int lsm_remote_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
-{
-    ret = cls_cxx_read(hctx, 0, 0, out);
+    cls_lsm_node_head root;
+    auto ret = lsm_read_node_head(hctx, root);
     if (ret < 0) {
-        CLS_LOG(1, "ERROR: lsm_remote_read_node: error reading data");
         return ret;
     }
+
+    ret = cls_cxx_read(hctx, root.entry_start_offset, (root.entry_end_offset - root.entry_start_offset), out);
+    if (ret < 0) {
+        CLS_LOG(1, "ERROR: cls_lsm_read_from_internal_nodes: failed reading the chunk");
+        return ret;
+    }
+
     return 0;
 }
 
@@ -189,47 +164,20 @@ int lsm_remote_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *
 int lsm_write_to_internal_nodes(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     auto itt = in->cbegin();
-    std::string object_name;
+    bool is_root;
     try {
-        decode(object_name, itt);
+        decode(is_root, itt);
     } catch (const ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode object name: %s", err.what());
+        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode is_root: %s", err.what());
         return -EINVAL;
     }
 
-    uint64_t my_level;
+    cls_lsm_node_head new_head;
     try {
-        decode(my_level, itt);
+        decode(new_head, itt);
     } catch (const ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode the level: %s", err.what());
+        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode node head: %s", err.what());
         return -EINVAL;
-    }
-
-    cls_lsm_key_range key_range;
-    try {
-        decode(key_range, itt);
-    } catch (const ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode key range: %s", err.what());
-        return -EINVAL;
-    }
-
-    uint64_t node_capacity;
-    try {
-        decode(node_capacity, itt);
-    } catch (const ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode node capacity: %s", err.what());
-        return -EINVAL;
-    }
-
-    std::vector<std::set<std::string>> column_splits;
-    try {
-        decode(column_splits, itt);
-    } catch (const ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode column splits: %s", err.what());
-        return -EINVAL;
-    }
-    if (column_splits.size() == 0) {
-        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed reading column_splits for the node");
     }
 
     std::vector<cls_lsm_entry> new_entries;
@@ -239,113 +187,28 @@ int lsm_write_to_internal_nodes(cls_method_context_t hctx, bufferlist *in, buffe
         CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode entries: %s", err.what());
         return -EINVAL;
     }
-    if (new_entries.size() == 0) {
-        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed getting entries from the input");
-        return -ENODATA;
+
+    // Casae 1: if this is the compacting root node, just write the new root node
+    if (is_root) {
+        lsm_write_one_node(hctx, new_head, new_entries);
+        return 0;
     }
 
-    CLS_LOG(1, "ocean : %lu", new_entries.size());
-    // check if the object exists and if has data in it
-    uint64_t read_size = CHUNK_SIZE, start_offset = 0;
-    bufferlist bl_head;
-    auto ret = cls_cxx_read(hctx, start_offset, read_size, &bl_head);
-    if (ret  < 0) {
-        CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed checking if node exists");
-        return ret;
-    } else if (ret > 0) {
-        CLS_LOG(1, "water street!!!");
-        auto it = bl_head.cbegin();
+    // Case 2, 3, 4, 5 are for the children nodes:
+    // Case 2, node does not exist; 
+    // Case 3, node exists and it is the leaf node;
+    // Case 4, node exists and it is not a leaf node but there is space; 
+    // Case 5, node exists but is full so needs to invoke compaction
+    cls_lsm_node_head old_head;
+    auto ret = lsm_read_node_head(hctx, old_head);
 
-        // check node head start
-        uint16_t node_start;
-        try {
-            decode(node_start, it);
-        } catch (const ceph::buffer::error& err) {
-            CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to decode node head start");
-            return -EINVAL;
-        }
-        if (node_start != LSM_NODE_START) {
-            CLS_LOG(1, "ERROR: lsm_write_to_internal_node: invalid node start");
-            return -EINVAL;
-        }
-
-        // check node length
-        uint64_t node_length;
-        try {
-            decode(node_length, it);
-        } catch (const ceph::buffer::error& err) {
-            CLS_LOG(0, "ERROR: lsm_write_to_internal_node: failed to decode node length");
-            return -EINVAL;
-        }
-
-        // if read-in length is not covering the whole tree, need to read more
-        if (read_size - sizeof(uint16_t) - sizeof(uint64_t) < node_length) {
-            CLS_LOG(1, "in lsm_write_to_internal_node, and need to read again!");
-            uint64_t continue_to_read = node_length - read_size + sizeof(uint16_t) + sizeof(uint64_t);
-            start_offset += read_size;
-            bufferlist bl_head_2;
-            ret = cls_cxx_read(hctx, start_offset, continue_to_read, &bl_head_2);
-
-            if (ret < 0) {
-                CLS_LOG(1, "ERROR: lsm_write_to_internal_node: failed to read the rest of the node");
-                return ret;
-            }
-            bl_head.claim_append(bl_head_2);
-        }
-
-        // get tree config
-        cls_lsm_node_head node_head;
-        try {
-            decode(node_head, it);
-        } catch (const ceph::buffer::error& err) {
-            CLS_LOG(0, "ERROR: lsm_read_node: failed to decode node: %s", err.what());
-            return -EINVAL;
-        }
-
-        if (node_head.size + new_entries.size() < node_head.max_capacity) {
-            ret = lsm_write_one_node(hctx, node_head, new_entries);
-            if (ret < 0) {
-                return ret;
-            }
-        } else {
-            // read in the data that the object already has
-            bufferlist bl_chunk;
-            ret = cls_cxx_read(hctx, node_head.entry_start_offset, (node_head.entry_end_offset - node_head.entry_start_offset), &bl_chunk);
-
-            std::vector<uint64_t> found_keys;
-            cls_lsm_get_entries_ret op_ret;
-            ret = lsm_get_entries(hctx, &bl_chunk, found_keys, op_ret);
-
-            new_entries.insert(new_entries.end(), op_ret.entries.begin(), op_ret.entries.end());
-
-            ret = lsm_compact_node(hctx, new_entries, node_head);
-            if (ret < 0) {
-                return ret;
-            }
-        }
+    if (ret < 0 || old_head.my_level >= old_head.levels || old_head.size < (old_head.capacity * 4 / 5)) {
+        ret = lsm_write_one_node(hctx, new_head, new_entries);
     } else {
-        cls_lsm_node_head new_node_head;
-        new_node_head.my_object_id = object_name;
-        new_node_head.my_level = my_level;
-        new_node_head.key_range = key_range;
-        new_node_head.max_capacity = node_capacity;
-        new_node_head.size = 0;
-        new_node_head.column_group_splits = column_splits;
-        new_node_head.bloomfilter_store = std::vector<bool>(BLOOM_FILTER_STORE_SIZE_64K, false);
+        ret = lsm_write_with_compaction(hctx, old_head, new_entries);
+    } 
 
-        bufferlist bl;
-        encode(new_node_head, bl);
-
-        new_node_head.entry_start_offset = bl.length() + sizeof(uint64_t) * 3 + sizeof(uint16_t) + LSM_DATA_START_PADDING;
-        new_node_head.entry_end_offset = new_node_head.entry_start_offset;
-
-        ret = lsm_write_one_node(hctx, new_node_head, new_entries);
-        if (ret < 0) {
-            return ret;
-        }
-    }
-
-    return 0;
+    return ret;
 }
 
 CLS_INIT(lsm)
@@ -358,7 +221,6 @@ CLS_INIT(lsm)
     cls_method_handle_t h_lsm_read_node;
     cls_method_handle_t h_lsm_read_from_internal_nodes;
     cls_method_handle_t h_lsm_write_to_internal_nodes;
-    cls_method_handle_t h_lsm_remote_read_node;
 
     cls_register(LSM_CLASS, &h_class);
 
@@ -367,7 +229,6 @@ CLS_INIT(lsm)
     cls_register_cxx_method(h_class, LSM_READ_NODE, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_node, &h_lsm_read_node);
     cls_register_cxx_method(h_class, LSM_READ_FROM_INTERNAL_NODES, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_from_internal_nodes, &h_lsm_read_from_internal_nodes);
     cls_register_cxx_method(h_class, LSM_WRITE_TO_INTERNAL_NODES, CLS_METHOD_RD | CLS_METHOD_WR, lsm_write_to_internal_nodes, &h_lsm_write_to_internal_nodes);
-    cls_register_cxx_method(h_class, LSM_REMOTE_READ_NODE, CLS_METHOD_RD | CLS_METHOD_WR, lsm_remote_read_node, &h_lsm_remote_read_node);
 
     return; 
 }

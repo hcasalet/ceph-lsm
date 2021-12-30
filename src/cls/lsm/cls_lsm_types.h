@@ -152,12 +152,14 @@ struct cls_lsm_node_head
     std::string my_object_id;                               // my own object node id
     std::string pool;                                       // pool in which the object is
     uint64_t my_level;                                      // level of the tree that the node is on
+    uint64_t levels;                                        // levels of the tree
     cls_lsm_key_range key_range;                            // range of keys stored in this object
-    uint64_t max_capacity;                                  // max number of objects that can be held
+    uint64_t capacity;                                      // max number of objects that can be held
     uint64_t size;                                          // number of objects holding already
     uint64_t entry_start_offset;                            // marker where data starts
     uint64_t entry_end_offset;                              // marker where data ends
     std::vector<std::set<std::string>> column_group_splits; // always splits into two groups
+    std::vector<bool> bloomfilter_store_ever;
     std::vector<bool> bloomfilter_store;                    // store for bloomfilter
 
     void encode(ceph::buffer::list& bl) const {
@@ -165,12 +167,14 @@ struct cls_lsm_node_head
         encode(my_object_id, bl);
         encode(pool, bl);
         encode(my_level, bl);
+        encode(levels, bl);
         encode(key_range, bl);
-        encode(max_capacity, bl);
+        encode(capacity, bl);
         encode(size, bl);
         encode(entry_start_offset, bl);
         encode(entry_end_offset, bl);
         encode(column_group_splits, bl);
+        encode(bloomfilter_store_ever, bl);
         encode(bloomfilter_store, bl);
         ENCODE_FINISH(bl);
     }
@@ -180,64 +184,18 @@ struct cls_lsm_node_head
         decode(my_object_id, bl);
         decode(pool, bl);
         decode(my_level, bl);
+        decode(levels, bl);
         decode(key_range, bl);
-        decode(max_capacity, bl);
+        decode(capacity, bl);
         decode(size, bl);
         decode(entry_start_offset, bl);
         decode(entry_end_offset, bl);
         decode(column_group_splits, bl);
+        decode(bloomfilter_store_ever, bl);
         decode(bloomfilter_store, bl);
         DECODE_FINISH(bl);
     }
 };
 WRITE_CLASS_ENCODER(cls_lsm_node_head)
-
-struct cls_lsm_tree_config
-{
-    std::string pool;
-    std::string tree_name;
-    uint64_t    levels;
-    cls_lsm_key_range key_range;
-    std::vector<std::set<std::string>> all_column_splits;
-    uint64_t    size;
-    uint64_t    per_node_capacity;
-    std::vector<bool> bloomfilter_store_all;
-    std::vector<bool> bloomfilter_store_root;
-    uint64_t    data_start_offset;
-    uint64_t    data_end_offset;
-
-    void encode(ceph::buffer::list& bl) const {
-        ENCODE_START(1, 1, bl);
-        encode(pool, bl);
-        encode(tree_name, bl);
-        encode(levels, bl);
-        encode(key_range, bl);
-        encode(all_column_splits, bl);
-        encode(size, bl);
-        encode(per_node_capacity, bl);
-        encode(bloomfilter_store_all, bl);
-        encode(bloomfilter_store_root, bl);
-        encode(data_start_offset, bl);
-        encode(data_end_offset, bl);
-        ENCODE_FINISH(bl);
-    }
-
-    void decode(ceph::buffer::list::const_iterator& bl) {
-        DECODE_START(1, bl);
-        decode(pool, bl);
-        decode(tree_name, bl);
-        decode(levels, bl);
-        decode(key_range, bl);
-        decode(all_column_splits, bl);
-        decode(size, bl);
-        decode(per_node_capacity, bl);
-        decode(bloomfilter_store_all, bl);
-        decode(bloomfilter_store_root, bl);
-        decode(data_start_offset, bl);
-        decode(data_end_offset, bl);
-        DECODE_FINISH(bl);
-    }
-};
-WRITE_CLASS_ENCODER(cls_lsm_tree_config)
 
 #endif /* CEPH_CLS_LSM_TYPES_H */

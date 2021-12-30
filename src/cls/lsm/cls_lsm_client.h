@@ -19,9 +19,8 @@ void cls_lsm_init(librados::ObjectWriteOperation& op,
                 const std::string& pool_name,
                 const std::string& tree_name,
                 uint64_t levels,
-                std::vector<uint64_t>& key_range,
-                uint64_t fan_out,
-                uint64_t max_capacity,
+                cls_lsm_key_range& key_range,
+                uint64_t capacity,
                 std::vector<std::set<std::string>>& columns);
 
 /**
@@ -47,7 +46,7 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
  * - bl_data_vec: vector of the "rows" to be written
  */
 void cls_lsm_write(librados::ObjectWriteOperation& op,
-                const std::string& oid,
-                std::vector<cls_lsm_entry> entries);
+                   const std::string& oid,
+                   std::vector<cls_lsm_entry>& entries);
 
 #endif
