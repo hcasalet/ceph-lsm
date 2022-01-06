@@ -49,4 +49,25 @@ void cls_lsm_write(librados::ObjectWriteOperation& op,
                    const std::string& oid,
                    std::vector<cls_lsm_entry>& entries);
 
+/**
+ * Compact API
+ * 
+ * Input: 
+ * - oid: object id of the node to be compacted
+ */
+int cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oid);
+
+/**
+ * Gather API
+ * 
+ * Input: 
+ * - oid: object id of the node to be compacted
+ * - keys: the collection of keys to be read
+ * - columns: the collection of columns to be read
+ */
+int cls_lsm_gather(librados::IoCtx& io_ctx, const std::string& oid,
+                 std::vector<uint64_t>& keys,
+                 std::vector<std::string>& columns,
+                 std::vector<cls_lsm_entry>& entries);
+
 #endif

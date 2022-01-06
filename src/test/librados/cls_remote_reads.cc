@@ -45,8 +45,12 @@ TEST(ClsTestRemoteReads, TestGather) {
 
   // create target object by combining data gathered from source objects using "test_read" method
   //ASSERT_EQ(0, ioctx.exec("tgt_object", "test_remote_operations", "test_gather", in, out));
+  int rval;
+  ObjectWriteOperation op;
+  op.exec("test_remote_reads", "test_gather", in, &out, &rval);
 
-  ioctx.exec("tgt_object", "test_remote_operations", "test_gather", in, out);
+  //ioctx.exec("tgt_object", "test_remote_operations", "test_gather", in, out);
+  ASSERT_EQ(0, ioctx.operate("tgt_object", &op, LIBRADOS_OPERATION_RETURNVEC));
   std::cout << "winter debug: length of out buffer is: " << out.length() << endl;
 
   // read target object and check its size

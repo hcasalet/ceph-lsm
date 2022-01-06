@@ -78,7 +78,7 @@ int lsm_append_entries(cls_method_context_t hctx, cls_lsm_append_entries_op& op,
 /**
  * Scatter data from a node when it needs to be compacted
  */
-int lsm_compact(cls_method_context_t hctx, std::map<std::string, bufferlist> tgt_objects, std::string pool);
+int lsm_compact(cls_method_context_t hctx, std::map<std::string, bufferlist>& tgt_objects, std::string pool);
 
 /**
  * Find the target object ids to scatter data into
@@ -98,6 +98,11 @@ std::vector<cls_lsm_entry> lsm_make_data_entries_for_children(std::vector<cls_ls
 /**
  * Write with compaction
  */
-int lsm_write_with_compaction(cls_method_context_t hctx, cls_lsm_node head root, std::vector<cls_lsm_entry> new_entries);
+int lsm_write_with_compaction(cls_method_context_t hctx, cls_lsm_node_head& root, std::vector<cls_lsm_entry>& new_entries);
+
+/**
+ * Add new entries to the root object for scattering together 
+ */
+void lsm_add_new_entries_to_root_object(cls_lsm_node_head root, std::vector<cls_lsm_entry>& new_entries, std::map<std::string, bufferlist>& tgt_objects);
 
 #endif /* CEPH_CLS_LSM_SRC_H */

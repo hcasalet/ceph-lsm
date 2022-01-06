@@ -80,6 +80,7 @@ static int test_write(cls_method_context_t hctx, bufferlist *in, bufferlist *out
  * scatter data to other objects using remote writes
  */
 static int test_scatter(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
+  CLS_LOG(1, "Holly debug remote writes");
   int r = cls_cxx_scatter_wait_for_completions(hctx);
   if (r == -EAGAIN) {
     // start remote writes

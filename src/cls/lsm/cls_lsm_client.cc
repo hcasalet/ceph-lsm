@@ -35,55 +35,24 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
     op.columns = columns;
     encode(op, in);
 
+    std::cout << "reading key: " << op.keys[0] << endl;
     int r = io_ctx.exec(oid, LSM_CLASS, LSM_READ_NODE, in, out);
-    if (r < 0)
+    if (r < 0) {
         return r;
-
+    }
+    std::cout << "reading finished with length: %u" << out.length() << endl;  
     cls_lsm_get_entries_ret ret;
     auto iter = out.cbegin();
-    try
-    {
+    try {
         decode(ret, iter);
-    }
-    catch (buffer::error &err)
+    } catch (buffer::error &err)
     {
         std::cout << "in cls_lsm_read : decoding cls_lsm_get_entries_ret - " << err.what() << endl;
         return -EIO;
     }
     entries = std::move(ret.entries);
 
-    return 0;
-}
-
-int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
-                 std::vector<uint64_t>& keys,
-                 std::vector<std::string>& columns,
-                 std::vector<cls_lsm_entry>& entries)
-{
-    bufferlist in, out;
-    cls_lsm_get_entries_op op;
-    op.keys = keys;
-    op.columns = columns;
-    encode(op, in);
-
-    int r = io_ctx.exec(oid, LSM_CLASS, LSM_READ_NODE, in, out);
-    if (r < 0)
-        return r;
-
-    cls_lsm_get_entries_ret ret;
-    auto iter = out.cbegin();
-    try
-    {
-        decode(ret, iter);
-    }
-    catch (buffer::error &err)
-    {
-        std::cout << "in cls_lsm_read : decoding cls_lsm_get_entries_ret - " << err.what() << endl;
-        return -EIO;
-    }
-    entries = std::move(ret.entries);
-
-    return 0;
+    return entries.size();
 }
 
 void cls_lsm_write(librados::ObjectWriteOperation& op,
@@ -96,4 +65,67 @@ void cls_lsm_write(librados::ObjectWriteOperation& op,
     call.entries = std::move(entries);
     encode(call, in);
     op.exec(LSM_CLASS, LSM_WRITE_NODE, in);
+}
+
+int cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oid)
+{
+    bufferlist in, out;
+
+    int r = io_ctx.exec(oid, LSM_CLASS, LSM_PREPARE_COMPACTION, in, out);
+    if (r < 0) {
+        return r;
+    }
+
+    in.claim_append(out);
+    out.clear();
+    r = io_ctx.exec(oid, LSM_CLASS, LSM_COMPACT, in, out);
+    if (r < 0) {
+        return r;
+    }
+
+    r = io_ctx.exec(oid, LSM_CLASS, LSM_UPDATE_POST_COMPACTION, in, out);
+    if (r < 0) {
+        return r;
+    }
+    
+    return r;
+}
+
+int cls_lsm_gather(librados::IoCtx& io_ctx, const std::string& oid,
+                 std::vector<uint64_t>& keys,
+                 std::vector<std::string>& columns,
+                 std::vector<cls_lsm_entry>& entries)
+{
+    std::cout << "gathering data " << endl;
+
+    bufferlist in, out;
+    cls_lsm_get_entries_op op;
+    op.keys = keys;
+    op.columns = columns;
+    encode(op, in);
+
+    int r = io_ctx.exec(oid, LSM_CLASS, LSM_PREPARE_GATHERING, in, out);
+    if (r < 0) {
+        return r;
+    }
+
+    in.clear();
+    in.claim_append(out);
+    out.clear();
+    r = io_ctx.exec(oid, LSM_CLASS, LSM_GATHER, in, out);
+    if (r < 0) {
+        return r;
+    }
+
+    cls_lsm_get_entries_ret ret;
+    auto iter = out.cbegin();
+    try {
+        decode(ret, iter);
+    } catch (buffer::error &err) {
+        std::cout << "in cls_lsm_gather : failed decoding cls_lsm_get_entries_ret " << endl;
+        return -EIO;
+    }
+    entries = std::move(ret.entries);
+
+    return entries.size();
 }
