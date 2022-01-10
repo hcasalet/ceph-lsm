@@ -11,7 +11,8 @@
 
 using namespace librados;
 
-TEST(ClsLsm, TestLsmInit) {
+TEST(ClsLsm, TestLsmInit)
+{
   Rados cluster;
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -21,7 +22,7 @@ TEST(ClsLsm, TestLsmInit) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -41,7 +42,14 @@ TEST(ClsLsm, TestLsmInit) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 5, key_range, 15, col_grps);
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
+  client.cls_lsm_init(op, pool_name, "mytree", 5, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -50,8 +58,16 @@ TEST(ClsLsm, TestLsmInit) {
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteOne4Cols) {
+TEST(ClsLsm, TestLsmWriteOne4Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -61,7 +77,7 @@ TEST(ClsLsm, TestLsmWriteOne4Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -77,7 +93,7 @@ TEST(ClsLsm, TestLsmWriteOne4Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -95,14 +111,22 @@ TEST(ClsLsm, TestLsmWriteOne4Cols) {
   entries.push_back(entry);
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteOne8Cols) {
+TEST(ClsLsm, TestLsmWriteOne8Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -112,7 +136,7 @@ TEST(ClsLsm, TestLsmWriteOne8Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -132,7 +156,7 @@ TEST(ClsLsm, TestLsmWriteOne8Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -147,21 +171,29 @@ TEST(ClsLsm, TestLsmWriteOne8Cols) {
   entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
   entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
   entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
   entries.clear();
   entries.push_back(entry);
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteOne16Cols) {
+TEST(ClsLsm, TestLsmWriteOne16Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -171,7 +203,7 @@ TEST(ClsLsm, TestLsmWriteOne16Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -199,7 +231,7 @@ TEST(ClsLsm, TestLsmWriteOne16Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -209,34 +241,42 @@ TEST(ClsLsm, TestLsmWriteOne16Cols) {
   entry.key = std::hash<std::string>{}(to_string(1));
   bufferlist bl;
   encode("col1value", bl);
-    entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c2", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c9", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c10", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C11", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c12", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c13", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c14", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c15", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c16", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c2", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c9", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c10", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C11", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c12", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c13", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c14", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c15", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c16", bl));
   entries.clear();
   entries.push_back(entry);
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteOne32Cols) {
+TEST(ClsLsm, TestLsmWriteOne32Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -246,7 +286,7 @@ TEST(ClsLsm, TestLsmWriteOne32Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -290,7 +330,7 @@ TEST(ClsLsm, TestLsmWriteOne32Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -300,50 +340,58 @@ TEST(ClsLsm, TestLsmWriteOne32Cols) {
   entry.key = std::hash<std::string>{}(to_string(1));
   bufferlist bl;
   encode("col1value", bl);
-    entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c2", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c9", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c10", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C11", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c12", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c13", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c14", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c15", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c16", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c17", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c18", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c19", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c20", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c21", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c22", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c23", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c24", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c25", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c26", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C27", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c28", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c29", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c30", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c31", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c32", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c2", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c9", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c10", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C11", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c12", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c13", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c14", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c15", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c16", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c17", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c18", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c19", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c20", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c21", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c22", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c23", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c24", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c25", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c26", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C27", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c28", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c29", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c30", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c31", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c32", bl));
   entries.clear();
   entries.push_back(entry);
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteOne64Cols) {
+TEST(ClsLsm, TestLsmWriteOne64Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -353,7 +401,7 @@ TEST(ClsLsm, TestLsmWriteOne64Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -429,7 +477,7 @@ TEST(ClsLsm, TestLsmWriteOne64Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -439,82 +487,90 @@ TEST(ClsLsm, TestLsmWriteOne64Cols) {
   entry.key = std::hash<std::string>{}(to_string(1));
   bufferlist bl;
   encode("col1value", bl);
-      entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c2", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c9", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c10", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C11", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c12", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c13", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c14", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c15", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c16", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c17", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c18", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c19", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c20", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c21", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c22", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c23", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c24", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c25", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c26", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C27", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c28", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c29", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c30", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c31", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c32", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c33", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c34", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c35", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c36", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c37", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c38", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c39", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c40", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c41", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c42", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C43", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c44", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c45", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c46", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c47", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c48", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c49", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c50", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c51", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c52", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c53", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c54", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c55", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c56", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c57", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c58", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C59", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c60", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c61", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c62", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c63", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c64", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c2", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c9", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c10", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C11", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c12", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c13", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c14", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c15", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c16", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c17", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c18", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c19", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c20", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c21", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c22", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c23", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c24", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c25", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c26", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C27", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c28", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c29", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c30", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c31", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c32", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c33", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c34", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c35", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c36", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c37", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c38", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c39", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c40", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c41", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c42", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C43", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c44", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c45", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c46", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c47", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c48", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c49", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c50", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c51", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c52", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c53", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c54", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c55", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c56", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c57", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c58", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C59", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c60", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c61", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c62", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c63", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c64", bl));
   entries.clear();
   entries.push_back(entry);
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteOne128Cols) {
+TEST(ClsLsm, TestLsmWriteOne128Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -524,7 +580,7 @@ TEST(ClsLsm, TestLsmWriteOne128Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -664,7 +720,7 @@ TEST(ClsLsm, TestLsmWriteOne128Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -674,147 +730,154 @@ TEST(ClsLsm, TestLsmWriteOne128Cols) {
   entry.key = std::hash<std::string>{}(to_string(1));
   bufferlist bl;
   encode("col1value", bl);
-    entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c2", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c9", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c10", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C11", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c12", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c13", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c14", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c15", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c16", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c17", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c18", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c19", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c20", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c21", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c22", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c23", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c24", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c25", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c26", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C27", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c28", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c29", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c30", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c31", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c32", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c33", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c34", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c35", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c36", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c37", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c38", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c39", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c40", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c41", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c42", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C43", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c44", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c45", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c46", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c47", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c48", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c49", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c50", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c51", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c52", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c53", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c54", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c55", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c56", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c57", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c58", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C59", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c60", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c61", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c62", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c63", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c64", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c65", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c66", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c67", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c68", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c69", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c70", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c71", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c72", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c73", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c74", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C75", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c76", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c77", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c78", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c79", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c80", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c81", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c82", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c83", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c84", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c85", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c86", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c87", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c88", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c89", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c90", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C91", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c92", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c93", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c94", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c95", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c96", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c97", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c98", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c99", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c100", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c101", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c102", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c103", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c104", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c105", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c106", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C107", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c108", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c109", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c110", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c111", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c112", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c113", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c114", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c115", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c116", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c117", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c118", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c119", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c120", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c121", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c122", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("C123", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c124", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c125", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c126", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c127", bl));
-    entry.value.insert(std::pair<std::string, bufferlist>("c128", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c2", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c3", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c5", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c6", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c7", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c8", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c9", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c10", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C11", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c12", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c13", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c14", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c15", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c16", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c17", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c18", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c19", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c20", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c21", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c22", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c23", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c24", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c25", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c26", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C27", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c28", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c29", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c30", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c31", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c32", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c33", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c34", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c35", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c36", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c37", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c38", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c39", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c40", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c41", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c42", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C43", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c44", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c45", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c46", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c47", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c48", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c49", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c50", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c51", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c52", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c53", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c54", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c55", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c56", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c57", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c58", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C59", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c60", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c61", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c62", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c63", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c64", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c65", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c66", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c67", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c68", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c69", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c70", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c71", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c72", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c73", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c74", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C75", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c76", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c77", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c78", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c79", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c80", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c81", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c82", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c83", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c84", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c85", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c86", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c87", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c88", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c89", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c90", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C91", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c92", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c93", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c94", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c95", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c96", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c97", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c98", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c99", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c100", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c101", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c102", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c103", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c104", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c105", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c106", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C107", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c108", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c109", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c110", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c111", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c112", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c113", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c114", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c115", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c116", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c117", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c118", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c119", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c120", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c121", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c122", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("C123", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c124", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c125", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c126", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c127", bl));
+  entry.value.insert(std::pair<std::string, bufferlist>("c128", bl));
   entries.clear();
   entries.push_back(entry);
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-///////////////////////////////////////////
-TEST(ClsLsm, TestLsmWriteTen4Cols) {
+TEST(ClsLsm, TestLsmWriteTen4Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -824,7 +887,7 @@ TEST(ClsLsm, TestLsmWriteTen4Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -840,7 +903,7 @@ TEST(ClsLsm, TestLsmWriteTen4Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -848,7 +911,8 @@ TEST(ClsLsm, TestLsmWriteTen4Cols) {
   bufferlist bl;
   encode("col1value", bl);
 
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     cls_lsm_entry entry;
     entry.key = std::hash<std::string>{}(to_string(i));
     entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
@@ -857,16 +921,24 @@ TEST(ClsLsm, TestLsmWriteTen4Cols) {
     entry.value.insert(std::pair<std::string, bufferlist>("c4", bl));
     entries.push_back(entry);
   }
-  
+
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteTen8Cols) {
+TEST(ClsLsm, TestLsmWriteTen8Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -876,7 +948,7 @@ TEST(ClsLsm, TestLsmWriteTen8Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -896,7 +968,7 @@ TEST(ClsLsm, TestLsmWriteTen8Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -905,7 +977,8 @@ TEST(ClsLsm, TestLsmWriteTen8Cols) {
   bufferlist bl;
   encode("col1value", bl);
 
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     cls_lsm_entry entry;
     entry.key = std::hash<std::string>{}(to_string(i));
     entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
@@ -920,14 +993,22 @@ TEST(ClsLsm, TestLsmWriteTen8Cols) {
   }
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteTen16Cols) {
+TEST(ClsLsm, TestLsmWriteTen16Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -937,7 +1018,7 @@ TEST(ClsLsm, TestLsmWriteTen16Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -965,7 +1046,7 @@ TEST(ClsLsm, TestLsmWriteTen16Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -974,7 +1055,8 @@ TEST(ClsLsm, TestLsmWriteTen16Cols) {
   bufferlist bl;
   encode("col1value", bl);
 
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     cls_lsm_entry entry;
     entry.key = std::hash<std::string>{}(to_string(i));
     entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
@@ -997,14 +1079,22 @@ TEST(ClsLsm, TestLsmWriteTen16Cols) {
   }
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteTen32Cols) {
+TEST(ClsLsm, TestLsmWriteTen32Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -1014,7 +1104,7 @@ TEST(ClsLsm, TestLsmWriteTen32Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -1058,7 +1148,7 @@ TEST(ClsLsm, TestLsmWriteTen32Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -1067,7 +1157,8 @@ TEST(ClsLsm, TestLsmWriteTen32Cols) {
   bufferlist bl;
   encode("col1value", bl);
 
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     cls_lsm_entry entry;
     entry.key = std::hash<std::string>{}(to_string(i));
     entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
@@ -1106,14 +1197,22 @@ TEST(ClsLsm, TestLsmWriteTen32Cols) {
   }
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteTen64Cols) {
+TEST(ClsLsm, TestLsmWriteTen64Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -1123,7 +1222,7 @@ TEST(ClsLsm, TestLsmWriteTen64Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -1199,7 +1298,7 @@ TEST(ClsLsm, TestLsmWriteTen64Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -1208,7 +1307,8 @@ TEST(ClsLsm, TestLsmWriteTen64Cols) {
   bufferlist bl;
   encode("col1value", bl);
 
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     cls_lsm_entry entry;
     entry.key = std::hash<std::string>{}(to_string(i));
     entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
@@ -1279,14 +1379,22 @@ TEST(ClsLsm, TestLsmWriteTen64Cols) {
   }
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
 
-TEST(ClsLsm, TestLsmWriteTen128Cols) {
+TEST(ClsLsm, TestLsmWriteTen128Cols)
+{
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all",
+                                   "mytree",
+                                   "mytree/kr-1:cg-1",
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   const std::string tree_name = "mytree";
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
@@ -1296,7 +1404,7 @@ TEST(ClsLsm, TestLsmWriteTen128Cols) {
   ObjectWriteOperation op;
   op.create(true);
 
-  std::vector<std::set<std::string>> col_grps;
+  std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
   cols1.insert("c2");
@@ -1436,7 +1544,7 @@ TEST(ClsLsm, TestLsmWriteTen128Cols) {
   key_range.high_bound = (size_t)-1;
   key_range.splits = 2;
 
-  cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
+  client.cls_lsm_init(op, pool_name, "mytree", 1, key_range, 15, col_grps);
   ASSERT_EQ(0, ioctx.operate("mytree", &op));
 
   bufferlist out;
@@ -1445,7 +1553,8 @@ TEST(ClsLsm, TestLsmWriteTen128Cols) {
   bufferlist bl;
   encode("col1value", bl);
 
-  for (int i=0; i<10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     cls_lsm_entry entry;
     entry.key = std::hash<std::string>{}(to_string(i));
     entry.value.insert(std::pair<std::string, bufferlist>("c1", bl));
@@ -1580,14 +1689,11 @@ TEST(ClsLsm, TestLsmWriteTen128Cols) {
   }
 
   ObjectWriteOperation op2;
-  cls_lsm_write(op2, tree_name, entries);
+  client.cls_lsm_write(op2, tree_name, entries);
   ASSERT_EQ(0, ioctx.operate("mytree", &op2));
 
   ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
-
-
-
 
 /*
 TEST(ClsLsm, TestLsmWriteTwo) {

@@ -87,6 +87,13 @@ TEST(ClsLsm, TestLsmPrepareRead) {
 
 TEST(ClsLsm, TestLsmReadLeve0) {
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all", 
+                                   "mytree", 
+                                   "mytree/kr-1:cg-1", 
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
   IoCtx ioctx;
@@ -162,12 +169,19 @@ TEST(ClsLsm, TestLsmReadLeve0) {
   std::vector<std::string> cols;
   cols.push_back("c2");
   std::vector<cls_lsm_entry> return_entries;
-  auto ret = cls_lsm_read(ioctx, "mytree", readkeys, cols, return_entries);
+  auto ret = client.cls_lsm_read(ioctx, "mytree", readkeys, cols, return_entries);
   ASSERT_EQ(1, ret);
 }
 
 TEST(ClsLsm, TestLsmReadLeve1) {
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all", 
+                                   "mytree", 
+                                   "mytree/kr-1:cg-1", 
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
   IoCtx ioctx;
@@ -238,7 +252,7 @@ TEST(ClsLsm, TestLsmReadLeve1) {
 
   ASSERT_EQ(0, ioctx.exec("mytree", "lsm", "lsm_create_object", in, out));
 
-  auto ret = cls_lsm_compact(ioctx, "mytree");
+  auto ret = client.cls_lsm_compact(ioctx, "mytree");
   ASSERT_EQ(0, ret);
 
   std::vector<uint64_t> readkeys;
@@ -246,12 +260,19 @@ TEST(ClsLsm, TestLsmReadLeve1) {
   std::vector<std::string> cols;
   cols.push_back("c2");
   std::vector<cls_lsm_entry> return_entries;
-  ret = cls_lsm_gather(ioctx, "mytree", readkeys, cols, return_entries);
+  ret = client.cls_lsm_gather(ioctx, "mytree", readkeys, cols, return_entries);
   ASSERT_EQ(1, ret);
 }
 
 TEST(ClsLsm, TestLsmRead) {
   Rados cluster;
+  std::vector<std::string> obj_ids{"mytree_all", 
+                                   "mytree", 
+                                   "mytree/kr-1:cg-1", 
+                                   "mytree/kr-1:cg-2",
+                                   "mytree/kr-2:cg-1",
+                                   "mytree/kr-2:cg-2"};
+  ClsLsmClient client(obj_ids);
   std::string pool_name = get_temp_pool_name();
   ASSERT_EQ("", create_one_pool_pp(pool_name, cluster));
   IoCtx ioctx;
@@ -402,7 +423,7 @@ TEST(ClsLsm, TestLsmRead) {
 
   std::vector<cls_lsm_entry> write_entries;
 
-  const auto ret = cls_lsm_gather(ioctx, "mytree", keys, cols, write_entries);
+  const auto ret = client.cls_lsm_gather(ioctx, "mytree", keys, cols, write_entries);
   ASSERT_EQ(1, ret);
 
 }

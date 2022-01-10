@@ -1,10 +1,11 @@
 #include "cls/lsm/cls_lsm_ops.h"
 #include "cls/lsm/cls_lsm_const.h"
+#include "cls/lsm/cls_lsm_bloomfilter.h"
 #include "cls/lsm/cls_lsm_client.h"
 
 using namespace librados;
 
-void cls_lsm_init(librados::ObjectWriteOperation& op,
+void ClsLsmClient::cls_lsm_init(librados::ObjectWriteOperation& op,
                   const std::string& pool_name,
                   const std::string& tree_name,
                   uint64_t levels,
@@ -24,7 +25,7 @@ void cls_lsm_init(librados::ObjectWriteOperation& op,
     op.exec(LSM_CLASS, LSM_INIT, in);
 }
 
-int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
+int ClsLsmClient::cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
                  std::vector<uint64_t>& keys,
                  std::vector<std::string>& columns,
                  std::vector<cls_lsm_entry>& entries)
@@ -35,12 +36,11 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
     op.columns = columns;
     encode(op, in);
 
-    std::cout << "reading key: " << op.keys[0] << endl;
     int r = io_ctx.exec(oid, LSM_CLASS, LSM_READ_NODE, in, out);
     if (r < 0) {
         return r;
     }
-    std::cout << "reading finished with length: %u" << out.length() << endl;  
+
     cls_lsm_get_entries_ret ret;
     auto iter = out.cbegin();
     try {
@@ -55,7 +55,7 @@ int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
     return entries.size();
 }
 
-void cls_lsm_write(librados::ObjectWriteOperation& op,
+void ClsLsmClient::cls_lsm_write(librados::ObjectWriteOperation& op,
                    const std::string& oid,
                    std::vector<cls_lsm_entry>& entries)
 {
@@ -65,39 +65,54 @@ void cls_lsm_write(librados::ObjectWriteOperation& op,
     call.entries = std::move(entries);
     encode(call, in);
     op.exec(LSM_CLASS, LSM_WRITE_NODE, in);
+
+    // register data in the bloomfilter stores
+    for (auto entry : entries) {
+        lsm_bloomfilter_insert(bloomfilter_store[oid+"_all"], to_string(entry.key));
+        lsm_bloomfilter_insert(bloomfilter_store[oid], to_string(entry.key));   
+    }
 }
 
-int cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oid)
+int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oid)
 {
-    bufferlist in, out;
+    bufferlist in, out, in2;
 
+    // Get ready to call scatter
     int r = io_ctx.exec(oid, LSM_CLASS, LSM_PREPARE_COMPACTION, in, out);
     if (r < 0) {
         return r;
     }
 
+    // get the result
+    in2 = out;
     in.claim_append(out);
-    out.clear();
+
+    // update the bloomfilters for the child objects to be compacted to
+    ClsLsmClient::update_bloomfilter(in2);
+
+    // call scatter to compact
     r = io_ctx.exec(oid, LSM_CLASS, LSM_COMPACT, in, out);
     if (r < 0) {
         return r;
     }
 
+    // clear all data out of the compacted object
     r = io_ctx.exec(oid, LSM_CLASS, LSM_UPDATE_POST_COMPACTION, in, out);
     if (r < 0) {
         return r;
     }
+
+    // clear bloomfilter for the compacted object
+    lsm_bloomfilter_clear(bloomfilter_store[oid]);
     
-    return r;
+    return 0;
 }
 
-int cls_lsm_gather(librados::IoCtx& io_ctx, const std::string& oid,
+int ClsLsmClient::cls_lsm_gather(librados::IoCtx& io_ctx, const std::string& oid,
                  std::vector<uint64_t>& keys,
                  std::vector<std::string>& columns,
                  std::vector<cls_lsm_entry>& entries)
 {
-    std::cout << "gathering data " << endl;
-
     bufferlist in, out;
     cls_lsm_get_entries_op op;
     op.keys = keys;
@@ -122,10 +137,44 @@ int cls_lsm_gather(librados::IoCtx& io_ctx, const std::string& oid,
     try {
         decode(ret, iter);
     } catch (buffer::error &err) {
-        std::cout << "in cls_lsm_gather : failed decoding cls_lsm_get_entries_ret " << endl;
+        std::cout << "in cls_lsm_gather: failed decoding cls_lsm_get_entries_ret" << endl;
         return -EIO;
     }
     entries = std::move(ret.entries);
 
     return entries.size();
+}
+
+int ClsLsmClient::update_bloomfilter(bufferlist in)
+{
+    std::map<std::string, bufferlist> tgt_objects;
+    auto it = in.cbegin();
+    try {
+        decode(tgt_objects, it);
+    } catch (buffer::error &err) {
+        std::cout << "in update_bloomfilter: failed to decode target objects" << err.what() << endl;
+        return -EIO;
+    }
+
+    for (auto tgt_object : tgt_objects) {
+        auto itt = tgt_object.second.cbegin();
+
+        bool is_root;
+        cls_lsm_node_head new_head;
+        std::vector<cls_lsm_entry> new_entries;
+        try {
+            decode(is_root, itt);
+            decode(new_head, itt);
+            decode(new_entries, itt);
+        } catch (const ceph::buffer::error& err) {
+            std::cout << "ERROR: update_bloomfilter: failed to decode entries" << endl;
+            return -EINVAL;
+        }
+
+        for (auto new_entry : new_entries) {
+            lsm_bloomfilter_insert(bloomfilter_store[tgt_object.first], to_string(new_entry.key));
+        }
+    }
+
+    return 0;
 }
