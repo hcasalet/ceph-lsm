@@ -64,21 +64,14 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
         CLS_LOG(1, "ERROR: cls_lsm_write_node: failed reading tree config");
         return ret;
     }
-    CLS_LOG(1, "Hey hey hey starting test, size of entries %lu, first key %lu", op.entries.size(), op.entries[0].key);
+    
     // write or write with compaction
-    if (root.size >= root.capacity*4/5) {
-        CLS_LOG(1, "DEBUG: entering compaction, root size %lu, root capacity %lu, entry %lu", root.size, root.capacity, op.entries[0].key);
-        ret = lsm_write_with_compaction(hctx, root, op.entries);        
-    } else {
-        CLS_LOG(1, "DEBUG: entering write, root size %lu, root capacity %lu, entry %lu", root.size, root.capacity, op.entries[0].key);
-        ret = lsm_write_one_node(hctx, root, op.entries);
-    }
-
-    CLS_LOG(1, "DEBUG: WRITE result: %u", ret);
-    /*if (ret < 0) {
+    CLS_LOG(1, "DEBUG: entering write, root size %lu, root capacity %lu, entry %lu", root.size, root.capacity, op.entries[0].key);
+    ret = lsm_write_one_node(hctx, root, op.entries);
+    if (ret < 0) {
         CLS_LOG(1, "ERROR: cls_lsm_write_node: failed writing data");
         return ret;
-    }*/
+    }
 
     return 0;
 }
@@ -359,7 +352,7 @@ int lsm_update_post_compaction(cls_method_context_t hctx, bufferlist *in, buffer
         CLS_LOG(1, "ERROR: in lsm_update_post_compaction: failed writing node head back");
         return ret;
     }
-
+ 
     return 0;
 }
 
