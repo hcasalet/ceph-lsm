@@ -130,6 +130,10 @@ static int test_scatter(cls_method_context_t hctx, bufferlist *in, bufferlist *o
  */
 static int test_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
   std::map<std::string, bufferlist> src_obj_buffs;
+
+  hobject_t soid = cls_get_oid(hctx);
+  std::string oid = soid.oid.name;
+
   int r = cls_cxx_get_gathered_data(hctx, &src_obj_buffs);
   if (src_obj_buffs.empty()) {
     // start remote reads
@@ -151,7 +155,7 @@ static int test_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     ceph_assert(o_pool);
     std::string pool = o_pool->get_data_val().str;
 
-    auto *o_src_objects = parser.find_obj("src_objects");
+    auto *o_src_objects = parser.find_obj("src_objects_chain");
     ceph_assert(o_src_objects);
     auto src_objects_v = o_src_objects->get_array_elements();
     std::set<std::string> src_objects;

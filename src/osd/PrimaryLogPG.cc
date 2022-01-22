@@ -10425,7 +10425,7 @@ int PrimaryLogPG::start_cls_gather(OpContext *ctx, std::map<std::string, bufferl
     std::string oid = it->first;
     ObjectOperation obj_op;
     obj_op.call(cls, method, inbl);
-    uint32_t flags = 0;
+    uint32_t flags = CEPH_OSD_FLAG_RETURNVEC;
     ceph_tid_t tid = osd->objecter->read(
 					 object_t(oid), oloc, obj_op,
 					 m->get_snapid(), &it->second,

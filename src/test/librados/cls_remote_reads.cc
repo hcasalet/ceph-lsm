@@ -21,20 +21,17 @@ TEST(ClsTestRemoteReads, TestGather) {
 
   // create source objects from which data are gathered
   in.append(buf, sizeof(buf));
-  ASSERT_EQ(0, ioctx.write_full("src_object.1", in));
-  in.append(buf, sizeof(buf));
-  ASSERT_EQ(0, ioctx.write_full("src_object.2", in));
-  in.append(buf, sizeof(buf));
   ASSERT_EQ(0, ioctx.write_full("src_object.3", in));
 
   // construct JSON request passed to "test_gather" method, and in turn, to "test_read" method
   JSONFormatter *formatter = new JSONFormatter(true);
   formatter->open_object_section("foo");
   std::set<std::string> src_objects;
+  src_objects.insert("src_object.0");
   src_objects.insert("src_object.1");
   src_objects.insert("src_object.2");
   src_objects.insert("src_object.3");
-  encode_json("src_objects", src_objects, formatter);
+  encode_json("src_objects_chain", src_objects, formatter);
   encode_json("cls", "test_remote_operations", formatter);
   encode_json("method", "test_read", formatter);
   encode_json("pool", pool_name, formatter);

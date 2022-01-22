@@ -136,6 +136,7 @@ extern int cls_gen_random_bytes(char *buf, int size);
 extern int cls_gen_rand_base64(char *dest, int size); /* size should be the required string size + 1 */
 
 /* environment */
+extern hobject_t cls_get_oid(cls_method_context_t hctx);
 extern uint64_t cls_current_version(cls_method_context_t hctx);
 extern int cls_current_subop_num(cls_method_context_t hctx);
 extern uint64_t cls_get_features(cls_method_context_t hctx);

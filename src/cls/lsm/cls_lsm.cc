@@ -81,7 +81,6 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
  */
 static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {   
-    CLS_LOG(1, "Holly debug: reading !!!!!!");
     // getting the read parameter
     auto iter = in->cbegin();
     cls_lsm_get_entries_op op;

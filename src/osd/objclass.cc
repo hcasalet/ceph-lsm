@@ -607,6 +607,12 @@ int cls_cxx_list_watchers(cls_method_context_t hctx,
   return 0;
 }
 
+hobject_t cls_get_oid(cls_method_context_t hctx)
+{
+  PrimaryLogPG::OpContext *ctx = *(PrimaryLogPG::OpContext **)hctx;
+  return ctx->new_obs.oi.soid;
+}
+
 uint64_t cls_current_version(cls_method_context_t hctx)
 {
   PrimaryLogPG::OpContext *ctx = *(PrimaryLogPG::OpContext **)hctx;

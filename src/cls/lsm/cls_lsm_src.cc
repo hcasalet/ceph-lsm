@@ -422,8 +422,6 @@ int lsm_write_one_node(cls_method_context_t hctx, cls_lsm_node_head& node_head, 
         node_head.size++;
     }
 
-    CLS_LOG(1, "Holly debug: name: %s, node size: %lu", node_head.my_object_id.c_str(), node_head.size);
-
     // update the node_head now that all data is written
     auto ret = lsm_write_node_head(hctx, node_head);
     if (ret < 0) {

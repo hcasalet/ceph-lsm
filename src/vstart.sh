@@ -744,6 +744,7 @@ $DAEMONOPTS
         osd class load list = *
         osd class default list = *
         osd fast shutdown = false
+        osd max write op reply len = 1000000000
 
         filestore wbthrottle xfs ios start flusher = 10
         filestore wbthrottle xfs ios hard limit = 20
