@@ -20,7 +20,7 @@ TEST(ClsLsm, TestLsmPrepareRead) {
 
   bufferlist in, out;
   ASSERT_EQ(0, ioctx.write_full("mytree", in));
-
+/*
   std::vector<std::set<std::string>> col_grps;
   std::set<std::string> cols1;
   cols1.insert("c1");
@@ -39,20 +39,16 @@ TEST(ClsLsm, TestLsmPrepareRead) {
 
   bufferlist bl_head;
   cls_lsm_node_head head;
-  head.my_object_id = "mytree";
+  head.object_id = "mytree";
   head.pool = pool_name;
   head.my_level = 0;
-  head.levels = 1;
   head.key_range = key_range;
   head.size = 0;
-  head.capacity = 3;
   head.column_group_splits = col_grps;
-  head.bloomfilter_store_ever = std::vector<bool>(BLOOM_FILTER_STORE_SIZE_256K, false);
-  head.bloomfilter_store = std::vector<bool>(BLOOM_FILTER_STORE_SIZE_256K, false);
   
   encode(head, bl_head);
-  head.entry_start_offset = bl_head.length() + sizeof(uint64_t) * 3 + sizeof(uint16_t) + LSM_DATA_START_PADDING;
-  head.entry_end_offset = head.entry_start_offset;
+  head.data_start_offset = bl_head.length() + sizeof(uint64_t) * 3 + sizeof(uint16_t) + LSM_DATA_START_PADDING;
+  head.data_end_offset = head.data_start_offset;
   encode(head, in);
 
   std::vector<cls_lsm_entry> entries;
@@ -82,9 +78,9 @@ TEST(ClsLsm, TestLsmPrepareRead) {
   encode(extra_keys, in);
 
   ASSERT_EQ(0, ioctx.exec("mytree", "lsm", "lsm_create_object", in, out));
-
+*/
 }
-
+/*
 TEST(ClsLsm, TestLsmReadLeve0) {
   Rados cluster;
   std::vector<std::string> obj_ids{"mytree_all", 
@@ -426,4 +422,4 @@ TEST(ClsLsm, TestLsmRead) {
   const auto ret = client.cls_lsm_gather(ioctx, "mytree", keys, cols, write_entries);
   ASSERT_EQ(1, ret);
 
-}
+}*/

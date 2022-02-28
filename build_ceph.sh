@@ -44,8 +44,11 @@ rm -rf out dev
 ulimit -l unlimited
 MON=1 OSD=3 MDS=0 MGR=1 FS=0 RGW=0 NFS=0 ../src/vstart.sh -d -n -x -i 127.0.0.1 --without-dashboard
 
-# list pools
+# create pool
 cd build
+bin/ceph osd pool create cephlsm
+
+# list pools
 bin/ceph osd lspools
 
 # build lsm
@@ -53,3 +56,6 @@ bin/ceph_test_cls_lsm
 
 # Check the object
 bin/rados -p <pool_name> ls
+
+# Run YCSB
+./bin/ycsb_cephlsm -db cephlsm -P "../src/tools/ycsb/workloads/workloadd.spec" -threads 4 -load true -run true

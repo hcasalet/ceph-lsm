@@ -21,7 +21,7 @@ TEST(ClsLsm, TestLsmPrepareCompact1)
 
     bufferlist in, out;
     ASSERT_EQ(0, ioctx.write_full("mytree", in));
-
+/*
     std::vector<std::set<std::string> > col_grps;
     std::set<std::string> cols1;
     cols1.insert("c1");
@@ -72,9 +72,9 @@ TEST(ClsLsm, TestLsmPrepareCompact1)
 
     ASSERT_EQ(0, ioctx.exec("mytree", "lsm", "lsm_create_object", in, out));
 
-    ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
+    ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));*/
 }
-
+/*
 TEST(ClsLsm, TestLsmCompact1)
 {
     Rados cluster;
@@ -1955,4 +1955,4 @@ TEST(ClsLsm, TestLsmCompactTen128Cols)
     auto ret = client.cls_lsm_compact(ioctx, "mytree");
     ASSERT_EQ(0, ret);
     destroy_one_pool_pp(pool_name, cluster);
-}
+}*/

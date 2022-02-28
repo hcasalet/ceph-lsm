@@ -3,23 +3,19 @@
 
 #include "include/rados/librados.hpp"
 #include "cls/lsm/cls_lsm_types.h"
+#include <iostream>
+#include <string>
 
 class ClsLsmClient {
 
-    typedef std::map<std::string, std::vector<bool>> BloomfilterStore;
+    typedef std::map<int, std::vector<std::vector<bool>>> BloomfilterStore;
 
 public:
-    ClsLsmClient(std::vector<std::string> obj_ids)
-    {
-        for (auto obj_id : obj_ids) {
-            if (obj_id.find("_all") != std::string::npos) {
-                bloomfilter_store.insert(std::pair<std::string, std::vector<bool>>(obj_id, std::vector<bool>(BLOOM_FILTER_STORE_SIZE_256K, false)));
-            } else {
-                bloomfilter_store.insert(std::pair<std::string, std::vector<bool>>(obj_id, std::vector<bool>(BLOOM_FILTER_STORE_SIZE_64K, false)));
-            }
-        }
-    }
+    ClsLsmClient() {};
 
+    void InitClient(std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels, 
+            std::map<int, std::vector<std::vector<std::string>>>& col_map);
+ 
     /**
     * Initialize the lsm tree, which essentially is to create the root node
     * 
@@ -32,27 +28,25 @@ public:
     * - columns: collection of column names
     */
     void cls_lsm_init(librados::ObjectWriteOperation& op,
-                const std::string& pool_name,
-                const std::string& tree_name,
-                uint64_t levels,
-                cls_lsm_key_range& key_range,
-                uint64_t capacity,
-                std::vector<std::set<std::string>>& columns);
+                    const std::string& pool_name,
+                    const std::string& tree_name,
+                    cls_lsm_key_range& key_range);
 
     /**
     * Read API
     *
     * Input:
-    * - oid: object id of the root node in the lsm tree
-    * - keys: the collection of keys to be read
+    * - io_ctx: the Input/Output context of Ceph
+    * - key: the key whose value is to be read
     * - columns: the collection of columns to be read
     * Output:
-    * - entries: the reading result
+    * - entry: the value of the found key
     */
-    int cls_lsm_read(librados::IoCtx& io_ctx, const std::string& oid,
-                std::vector<uint64_t>& keys,
-                std::vector<std::string>& columns,
-                std::vector<cls_lsm_entry>& entries);
+    int cls_lsm_read(librados::IoCtx& io_ctx,
+                    const std::string& pool_name,
+                    uint64_t key,
+                    const std::vector<std::string> *columns,
+                    cls_lsm_entry& entry);
 
     /**
     * Write API
@@ -61,10 +55,8 @@ public:
     * - oid: object id of the root node to write the data to
     * - bl_data_vec: vector of the "rows" to be written
     */
-    void cls_lsm_write(librados::ObjectWriteOperation& op,
-                   const std::string& oid,
-                   std::vector<cls_lsm_entry>& entries);
-
+    void cls_lsm_write(librados::IoCtx& io_ctx, const std::string& oid, cls_lsm_entry& entry);
+    
     /**
     * Compact API
     * 
@@ -81,14 +73,21 @@ public:
     * - keys: the collection of keys to be read
     * - columns: the collection of columns to be read
     */
-    int cls_lsm_gather(librados::IoCtx& io_ctx, const std::string& oid,
-                 std::vector<uint64_t>& keys,
+    int cls_lsm_scan(librados::IoCtx& io_ctx,
+                 uint64_t start_key, uint64_t max_key,
                  std::vector<std::string>& columns,
                  std::vector<cls_lsm_entry>& entries);
 
 private:
+    std::string tree_name;
+    uint64_t key_low_bound;
+    uint64_t key_high_bound;
+    int            key_splits;
+    int            levels;
     BloomfilterStore bloomfilter_store;
-    int update_bloomfilter(bufferlist in);
+    std::map<int, std::vector<std::vector<std::string>>> column_map;
+
+    int update_bloomfilter(bufferlist in, int level);
 };
 
 #endif

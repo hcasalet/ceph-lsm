@@ -8,33 +8,24 @@
 
 struct cls_lsm_init_op {
     std::string pool_name;
-    std::string tree_name;
-    uint64_t    levels;
+    std::string obj_name;
     cls_lsm_key_range key_range;
-    uint64_t capacity;
-    std::vector<std::set<std::string>> column_group_splits;
 
     cls_lsm_init_op() {}
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
         encode(pool_name, bl);
-        encode(tree_name, bl);
-        encode(levels, bl);
+        encode(obj_name, bl);;
         encode(key_range, bl);
-        encode(capacity, bl);
-        encode(column_group_splits, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
         decode(pool_name, bl);
-        decode(tree_name, bl); 
-        decode(levels, bl);
+        decode(obj_name, bl); 
         decode(key_range, bl);
-        decode(capacity, bl);
-        decode(column_group_splits, bl);
         DECODE_FINISH(bl);
     }
 };
@@ -64,21 +55,21 @@ struct cls_lsm_append_entries_op {
 WRITE_CLASS_ENCODER(cls_lsm_append_entries_op)
 
 struct cls_lsm_get_entries_op {
-    std::vector<uint64_t> keys;
+    uint64_t key;
     std::vector<std::string> columns;
 
     cls_lsm_get_entries_op() {}
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
-        encode(keys, bl);
+        encode(key, bl);
         encode(columns, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
-        decode(keys, bl);
+        decode(key, bl);
         decode(columns, bl);
         DECODE_FINISH(bl);
     }

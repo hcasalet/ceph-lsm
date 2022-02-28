@@ -20,7 +20,7 @@
 /**
  * padding buffer between the tree-config in root node and the data
  */
-#define LSM_DATA_START_PADDING 2048
+#define LSM_DATA_START_PADDING 49152
 
 // size of head
 #define LSM_NON_ROOT_DATA_START_100K 102400
@@ -40,7 +40,7 @@ struct cls_lsm_key_range
 {
     uint64_t low_bound;
     uint64_t high_bound;
-    uint16_t splits;
+    int      splits;
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
@@ -149,50 +149,35 @@ WRITE_CLASS_ENCODER(cls_lsm_entry)
 // lsm tree node
 struct cls_lsm_node_head
 {
-    std::string my_object_id;                               // my own object node id
-    std::string pool;                                       // pool in which the object is
-    uint64_t my_level;                                      // level of the tree that the node is on
-    uint64_t levels;                                        // levels of the tree
-    cls_lsm_key_range key_range;                            // range of keys stored in this object
-    uint64_t capacity;                                      // max number of objects that can be held
-    uint64_t size;                                          // number of objects holding already
-    uint64_t entry_start_offset;                            // marker where data starts
-    uint64_t entry_end_offset;                              // marker where data ends
-    std::vector<std::set<std::string>> column_group_splits; // always splits into two groups
-    std::vector<bool> bloomfilter_store_ever;
-    std::vector<bool> bloomfilter_store;                    // store for bloomfilter
+    std::string object_id;                                     // my own object node id
+    std::string pool;                                          // pool in which the object is
+    cls_lsm_key_range key_range;                               // range of keys stored in this object
+    uint64_t size;                                             // number of objects holding already
+    std::map<uint64_t, std::pair<uint64_t, uint64_t>> key_map; // location of each key/value pair
+    uint64_t data_start_offset;                                // marker where app data starts
+    uint64_t data_end_offset;                                  // tail of the data
 
     void encode(ceph::buffer::list& bl) const {
         ENCODE_START(1, 1, bl);
-        encode(my_object_id, bl);
+        encode(object_id, bl);
         encode(pool, bl);
-        encode(my_level, bl);
-        encode(levels, bl);
         encode(key_range, bl);
-        encode(capacity, bl);
         encode(size, bl);
-        encode(entry_start_offset, bl);
-        encode(entry_end_offset, bl);
-        encode(column_group_splits, bl);
-        encode(bloomfilter_store_ever, bl);
-        encode(bloomfilter_store, bl);
+        encode(key_map, bl);
+        encode(data_start_offset, bl);
+        encode(data_end_offset, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(ceph::buffer::list::const_iterator& bl) {
         DECODE_START(1, bl);
-        decode(my_object_id, bl);
+        decode(object_id, bl);
         decode(pool, bl);
-        decode(my_level, bl);
-        decode(levels, bl);
         decode(key_range, bl);
-        decode(capacity, bl);
         decode(size, bl);
-        decode(entry_start_offset, bl);
-        decode(entry_end_offset, bl);
-        decode(column_group_splits, bl);
-        decode(bloomfilter_store_ever, bl);
-        decode(bloomfilter_store, bl);
+        decode(key_map, bl);
+        decode(data_start_offset, bl);
+        decode(data_end_offset, bl);
         DECODE_FINISH(bl);
     }
 };
