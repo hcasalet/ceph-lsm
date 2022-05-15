@@ -1,12 +1,13 @@
 #include "cls/lsm/cls_lsm_ops.h"
 #include "cls/lsm/cls_lsm_const.h"
 #include "cls/lsm/cls_lsm_bloomfilter.h"
-#include "cls/lsm/cls_lsm_client.h"
 #include "cls/lsm/cls_lsm_util.h"
+#include "objclass/objclass.h"
+#include "cls/lsm/cls_lsm_write_optimized.h"
 
 using namespace librados;
 
-void ClsLsmClient::InitClient(std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels,
+void ClsWriteOptimizedClient::InitClient(std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels,
         std::map<int, std::vector<std::vector<std::string>>>& col_map)
 {
     tree_name = tree;
@@ -15,27 +16,29 @@ void ClsLsmClient::InitClient(std::string tree, uint64_t key_low, uint64_t key_h
     key_splits = splits;
     levels = levels;
     column_map = col_map;
-    int filters = 1;
+    uint64_t filters = 1;
     for (int i = 0; i <= levels; i++) {
         std::vector<std::vector<bool>> bloomfilters;
-        for (int j = 0; j < filters; j++) {
+        for (uint64_t j = 0; j < filters; j++) {
             bloomfilters.push_back(std::vector<bool>(BLOOM_FILTER_STORE_SIZE_64K, false));
         }
         bloomfilter_store.insert(std::pair<int, std::vector<std::vector<bool>>>(i, bloomfilters));
-        filters *= splits;
+
+        if (i > 1) {
+            filters *= splits;
+        }
     }
 }
 
-void ClsLsmClient::cls_lsm_init(librados::ObjectWriteOperation& op,
+void ClsWriteOptimizedClient::cls_write_optimized_init(librados::ObjectWriteOperation& op,
                   const std::string& pool_name,
                   const std::string& tree_name,
                   cls_lsm_key_range& key_range)
 {
-    int level_splits = 0;
+    int level_splits = 1;
+    uint64_t columns = 1;
     for (int i = 0; i <= levels; i++) {
-        if (i == 0) {
-            level_splits = 1;
-        } else {
+        if (i > 0) {
             level_splits *= key_range.splits;
         }
 
@@ -45,14 +48,18 @@ void ClsLsmClient::cls_lsm_init(librados::ObjectWriteOperation& op,
 
         for (int j = 0; j < level_splits; j++) {
 
-            for (uint64_t k = 0; k < column_map[i].size(); k++) {
+            if (i > 0) {
+                columns = column_map[i].size();
+            }
+
+            for (uint64_t k = 0; k < columns; k++) {
                 bufferlist in;
                 cls_lsm_init_op call;
                 call.pool_name = pool_name;
                 call.obj_name = tree_name+"/level-"+to_string(i)+"/keyrange-"+to_string(j)+"/columngroup-"+to_string(k);
                 call.key_range.low_bound = low_bound;
                 call.key_range.high_bound = high_bound;
-                call.key_range.splits = level_splits;
+                call.key_range.splits  = level_splits;
                 encode(call, in);
                 op.exec(LSM_CLASS, LSM_INIT, in);
             }
@@ -63,12 +70,12 @@ void ClsLsmClient::cls_lsm_init(librados::ObjectWriteOperation& op,
     }
 }
 
-int ClsLsmClient::cls_lsm_read(librados::IoCtx& io_ctx, const std::string& pool_name,
+int ClsWriteOptimizedClient::cls_write_optimized_read(librados::IoCtx& io_ctx, const std::string& pool_name,
                 uint64_t key, const std::vector<std::string> *columns, cls_lsm_entry& entry)
 {
     std::vector<std::string> obj_ids;
+    int key_group = 0;
     for (int i = 0; i <= levels; i++) {
-        int key_group = 0;
         if (i > 0) {
             key_group = get_key_group(key_low_bound, key_high_bound, key_splits, i, key);
         }
@@ -110,13 +117,25 @@ int ClsLsmClient::cls_lsm_read(librados::IoCtx& io_ctx, const std::string& pool_
             return r;
         }
 
+        cls_lsm_entry read_entry;
         auto iter = out.cbegin();
         try {
-            decode(entry, iter);
+            decode(read_entry, iter);
         } catch (buffer::error &err) {
             std::cout << "in cls_lsm_read : decoding cls_lsm_entry - " << err.what() << endl;
             return -EIO;
         }
+
+        std::map<std::string, bufferlist> results;
+        for (auto col : *columns) {
+            auto it = read_entry.value.find(col);
+            if (it != read_entry.value.end()) {
+                results.insert(std::pair<std::string, bufferlist>(it->first, it->second));
+            }
+        }
+
+        entry.key = key;
+        entry.value = results;
     } else {
         // gather
         encode(obj_ids, in);
@@ -129,7 +148,7 @@ int ClsLsmClient::cls_lsm_read(librados::IoCtx& io_ctx, const std::string& pool_
     return r;
 }
 
-void ClsLsmClient::cls_lsm_write(librados::IoCtx& io_ctx, const std::string& oid, cls_lsm_entry& entry)
+void ClsWriteOptimizedClient::cls_write_optimized_write(librados::IoCtx& io_ctx, const std::string& oid, cls_lsm_entry& entry)
 {
     bufferlist in, out;
     encode(entry, in);
@@ -144,7 +163,7 @@ void ClsLsmClient::cls_lsm_write(librados::IoCtx& io_ctx, const std::string& oid
     lsm_bloomfilter_insert(bloomfilter_store[0][0], to_string(entry.key));
 }
 
-int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oid)
+int ClsWriteOptimizedClient::cls_write_optimized_compact(librados::IoCtx& io_ctx, const std::string& oid)
 {
     // get level from object_id
     int level = get_level_from_object_id(oid);
@@ -171,7 +190,7 @@ int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oi
     }
 
     // update the bloomfilters for the child objects to be compacted to
-    ClsLsmClient::update_bloomfilter(in2, level);
+    ClsWriteOptimizedClient::update_bloomfilter(in2, level);
 
     // clear all data out of the compacted object
     r = io_ctx.exec(oid, LSM_CLASS, LSM_UPDATE_POST_COMPACTION, in, out);
@@ -186,7 +205,7 @@ int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oi
     return 0;
 }
 
-int ClsLsmClient::cls_lsm_scan(librados::IoCtx& io_ctx,
+int ClsWriteOptimizedClient::cls_write_optimized_scan(librados::IoCtx& io_ctx,
                  uint64_t start_key, uint64_t max_key,
                  std::vector<std::string>& columns,
                  std::vector<cls_lsm_entry>& entries)
@@ -224,7 +243,7 @@ int ClsLsmClient::cls_lsm_scan(librados::IoCtx& io_ctx,
     return entries.size();
 }
 
-int ClsLsmClient::update_bloomfilter(bufferlist in, int level)
+int ClsWriteOptimizedClient::update_bloomfilter(bufferlist in, int level)
 {
     std::map<std::string, bufferlist> tgt_objects;
     auto it = in.cbegin();
@@ -247,7 +266,7 @@ int ClsLsmClient::update_bloomfilter(bufferlist in, int level)
         }
 
         int key_group = get_key_range_from_object_id(tgt_object.first);
-        for (auto new_entry : new_entries) {    
+        for (auto new_entry : new_entries) {
             lsm_bloomfilter_insert(bloomfilter_store[level][key_group], to_string(new_entry.key));
         }
     }

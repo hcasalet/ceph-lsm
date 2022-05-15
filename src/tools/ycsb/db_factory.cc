@@ -11,6 +11,8 @@
 #include <string>
 
 #include "cephlsm_db.h"
+#include "readoptimized_db.h"
+#include "writeoptimized_db.h"
 
 using namespace std;
 using ycsbc::DB;
@@ -19,6 +21,9 @@ using ycsbc::DBFactory;
 DB* DBFactory::CreateDB(utils::Properties &props) {
   if (props["dbname"] == "cephlsm") {
     return new CephLsmDB(props);
+  } else if (props["dbname"] == "readoptimized") {
+    return new ReadOptimizedDB(props);
+  } else if (props["dbname"] == "writeoptimized") {
+    return new WriteOptimizedDB(props);
   } else return NULL;
 }
-

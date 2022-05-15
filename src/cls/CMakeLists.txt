@@ -366,3 +366,15 @@ set(cls_lsm_client_srcs
   lsm/cls_lsm_bloomfilter.cc
   lsm/cls_lsm_util.cc)
 add_library(cls_lsm_client STATIC ${cls_lsm_client_srcs})
+
+set(cls_lsm_read_optimized_srcs
+  lsm/cls_lsm_read_optimized.cc
+  lsm/cls_lsm_bloomfilter.cc
+  lsm/cls_lsm_util.cc)
+add_library(cls_lsm_read_optimized STATIC ${cls_lsm_read_optimized_srcs})
+
+set(cls_lsm_write_optimized_srcs
+  lsm/cls_lsm_write_optimized.cc
+  lsm/cls_lsm_bloomfilter.cc
+  lsm/cls_lsm_util.cc)
+add_library(cls_lsm_write_optimized STATIC ${cls_lsm_write_optimized_srcs})
