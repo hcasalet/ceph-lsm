@@ -91,6 +91,10 @@ static int test_scatter(cls_method_context_t hctx, bufferlist *in, bufferlist *o
  */
 static int test_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
   std::map<std::string, bufferlist> src_obj_buffs;
+
+  hobject_t soid = cls_get_oid(hctx);
+  std::string oid = soid.oid.name;
+
   int r = cls_cxx_get_gathered_data(hctx, &src_obj_buffs);
   if (src_obj_buffs.empty()) {
     // start remote reads
@@ -112,7 +116,7 @@ static int test_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     ceph_assert(o_pool);
     std::string pool = o_pool->get_data_val().str;
 
-    auto *o_src_objects = parser.find_obj("src_objects");
+    auto *o_src_objects = parser.find_obj("src_objects_chain");
     ceph_assert(o_src_objects);
     auto src_objects_v = o_src_objects->get_array_elements();
     std::set<std::string> src_objects;
@@ -120,7 +124,24 @@ static int test_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       std::string oid_without_double_quotes = it->substr(1, it->size()-2);
       src_objects.insert(oid_without_double_quotes);
     }
-    r = cls_cxx_gather(hctx, src_objects, pool, cls.c_str(), method.c_str(), *in);
+    auto it = src_objects.find(oid);
+    ceph_assert(it != src_objects.end());
+    it++;
+    if (it != src_objects.end()) {
+      std::string next = *it;
+      src_objects.clear();
+      src_objects.insert(next);
+      method = "test_gather";
+      r = cls_cxx_gather(hctx, src_objects, pool, cls.c_str(), method.c_str(), *in);
+      CLS_ERR("%s: oid=%s, forwarding request to %s", __PRETTY_FUNCTION__, oid.c_str(), next.c_str());
+    } else {
+        CLS_ERR("%s: oid=%s, end of chain, read data", __PRETTY_FUNCTION__, oid.c_str());
+        int r = cls_cxx_read(hctx, 0, 0, out);
+        if (r < 0) {
+          CLS_ERR("%s: error reading data", __PRETTY_FUNCTION__);
+          return r;
+        }
+    }
   } else {
     // write data gathered using remote reads
     int offset = 0;
@@ -128,6 +149,7 @@ static int test_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       bufferlist bl= it->second;
       r = cls_cxx_write(hctx, offset, bl.length(), &bl);
       offset += bl.length();
+      out->append(bl);
     }
   }
   return r;
