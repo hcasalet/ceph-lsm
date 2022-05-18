@@ -48,23 +48,10 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
  */ 
 static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    // get the write parameter
-    auto iter = in->cbegin();
-    cls_lsm_entry entry;
-    try {
-        decode(entry, iter);
-    } catch (ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: cls_lsm_write_node: failed to decode input data");
-        return -EINVAL;
-    }
-
-    // write or write with compaction
-    std::vector<cls_lsm_entry> entries;
-    entries.push_back(entry);
-    auto ret = lsm_write_entries(hctx, entries);
+    CLS_ERR("jumped in");
+    int ret = cls_cxx_write(hctx, 0, in->length(), in);
     if (ret < 0) {
-        CLS_LOG(1, "ERROR: cls_lsm_write_node: failed writing data");
-        return ret;
+        CLS_ERR("%s: failed writing level 1 node", __PRETTY_FUNCTION__);
     }
 
     return ret;
@@ -157,7 +144,7 @@ int lsm_prepare_compaction(cls_method_context_t hctx, bufferlist *in, bufferlist
     }
 
     // split the entries by columns
-    std::vector<std::vector<cls_lsm_entry>> split_entries;
+    /*std::vector<std::vector<cls_lsm_entry>> split_entries;
     split_column_groups_for_entries(entries, col_grps, split_entries);
 
     // get the target objects
@@ -165,7 +152,7 @@ int lsm_prepare_compaction(cls_method_context_t hctx, bufferlist *in, bufferlist
     lsm_get_scatter_targets(head, split_entries, tgt_objects);
 
     encode(tgt_objects, *out);
-    encode(head.pool, *out);
+    encode(head.pool, *out);*/
 
     return 0;
 }
@@ -250,7 +237,7 @@ int lsm_update_post_compaction(cls_method_context_t hctx, bufferlist *in, buffer
 /**
  * Function to get all child object ids to prepare for gathering
  */
-/*int lsm_prepare_gathering(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+int lsm_prepare_gathering(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     auto in_iter = in->cbegin();
     cls_lsm_get_entries_op op;
@@ -267,14 +254,14 @@ int lsm_update_post_compaction(cls_method_context_t hctx, bufferlist *in, buffer
         return ret;
     }
 
-    std::set<std::string> child_objs;
-    lsm_get_child_object_ids(root, op.keys, op.columns, child_objs);
+    //std::set<std::string> child_objs;
+    //lsm_get_child_object_ids(root, op.keys, op.columns, child_objs);
 
-    encode(child_objs, *out);
-    encode(root.pool, *out);
+    //encode(child_objs, *out);
+    //encode(root.pool, *out);
 
     return 0;
-}*/
+}
 
 /**
  * Function to gather

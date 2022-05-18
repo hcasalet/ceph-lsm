@@ -19,8 +19,12 @@ TEST(ClsLsm, TestLsmInit)
   IoCtx ioctx;
   cluster.ioctx_create(pool_name.c_str(), ioctx);
 
-  ObjectWriteOperation op;
-  op.create(true);
+  bufferlist in, out;
+  ioctx.exec("mytestobj", "lsm", "lsm_write_node", in, out);
+}
+
+ // ObjectWriteOperation op;
+  //op.create(true);
 /*
   std::vector<std::set<std::string> > col_grps;
   std::set<std::string> cols1;
@@ -55,9 +59,9 @@ TEST(ClsLsm, TestLsmInit)
   bufferlist out;
   ASSERT_EQ(524534, ioctx.read("mytree", out, 0, 0));
 
-  ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));*/
+  ASSERT_EQ(0, destroy_one_pool_pp(pool_name, cluster));
 }
-/*
+
 TEST(ClsLsm, TestLsmWriteOne4Cols)
 {
   Rados cluster;

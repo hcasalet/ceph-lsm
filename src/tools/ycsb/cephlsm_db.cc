@@ -94,8 +94,8 @@ namespace ycsbc {
     }
 
     CephLsmDB::~CephLsmDB() {
-        ioctx.close();
-        destroy_one_pool_pp(pool_name, cluster);
+        /*ioctx.close();
+        destroy_one_pool_pp(pool_name, cluster);*/
     }
 
 }

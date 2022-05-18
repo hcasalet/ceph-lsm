@@ -55,7 +55,7 @@ public:
     * - oid: object id of the root node to write the data to
     * - bl_data_vec: vector of the "rows" to be written
     */
-    void cls_lsm_write(librados::IoCtx& io_ctx, const std::string& oid, cls_lsm_entry& entry);
+    void cls_lsm_write(librados::IoCtx& io_ctx, const std::string& root_name, cls_lsm_entry& entry);
     
     /**
     * Compact API
@@ -84,9 +84,12 @@ private:
     uint64_t key_high_bound;
     int            key_splits;
     int            levels;
+    std::map<int, int> level_inventory;
+    std::map<uint64_t, cls_lsm_entry> in_mem_data;
+    std::map<int, int> level_col_grps;
     BloomfilterStore bloomfilter_store;
     std::map<int, std::vector<std::vector<std::string>>> column_map;
-
+   
     int update_bloomfilter(bufferlist in, int level);
 };
 

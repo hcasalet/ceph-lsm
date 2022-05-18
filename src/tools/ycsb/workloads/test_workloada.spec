@@ -9,16 +9,19 @@ keylength=16
 fieldcount=8
 fieldlength=16
 poolname=cephlsm
-table=cephlsm/level-0/keyrange-0/columngroup-0
+table=cephlsm
 
-recordcount=100000
-operationcount=10000
+#recordcount=100000
+#operationcount=10000
+
+recordcount=20
+operationcount=20
 workload=com.yahoo.ycsb.workloads.CoreWorkload
 
 readallfields=false
 
-readproportion=0.5
-updateproportion=0.5
+readproportion=0
+updateproportion=1.0
 scanproportion=0
 insertproportion=0
 

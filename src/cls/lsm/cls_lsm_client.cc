@@ -24,6 +24,11 @@ void ClsLsmClient::InitClient(std::string tree, uint64_t key_low, uint64_t key_h
         bloomfilter_store.insert(std::pair<int, std::vector<std::vector<bool>>>(i, bloomfilters));
         filters *= splits;
     }
+
+    for (int i = 1; i <= levels; i++) {
+        level_inventory.insert(std::pair<int, int>(i, 0));
+        level_col_grps.insert(std::pair<int, int>(i, (col_map.find(i)->second).size()));
+    }
 }
 
 void ClsLsmClient::cls_lsm_init(librados::ObjectWriteOperation& op,
@@ -129,19 +134,45 @@ int ClsLsmClient::cls_lsm_read(librados::IoCtx& io_ctx, const std::string& pool_
     return r;
 }
 
-void ClsLsmClient::cls_lsm_write(librados::IoCtx& io_ctx, const std::string& oid, cls_lsm_entry& entry)
+void ClsLsmClient::cls_lsm_write(librados::IoCtx& io_ctx, const std::string& root_name, cls_lsm_entry& entry)
 {
-    bufferlist in, out;
-    encode(entry, in);
-
-    librados::ObjectWriteOperation op;
-    op.create(true);
-
-    op.exec(LSM_CLASS, LSM_WRITE_NODE, in);
-    io_ctx.operate(oid, &op);
-
     // register data in the bloomfilter stores
     lsm_bloomfilter_insert(bloomfilter_store[0][0], to_string(entry.key));
+
+    if (in_mem_data.size() < LSM_LEVEL_0_CAPACITY) {
+        in_mem_data.insert(std::pair<uint64_t, cls_lsm_entry>(entry.key, entry));
+    } else {
+        if (level_inventory.find(1)->second < LSM_LEVEL_OBJECT_CAPACITY) {
+            bufferlist in, out;
+
+            // No need to sort, as std::map is sorted by key ascending
+            for (auto en : in_mem_data) {
+                bufferlist bl_entry;
+                encode(en.second, bl_entry);
+
+                uint64_t encoded_len = bl_entry.length();
+                encode(encoded_len, in);
+                in.claim_append(bl_entry);
+            }
+
+            //librados::ObjectWriteOperation op;
+            //op.create(true);
+
+            //op.exec(LSM_CLASS, LSM_WRITE_NODE, in);
+            std::string oid = root_name + "/level-1/colgrp-0/member-"+to_string(level_inventory.find(1)->second);
+            //io_ctx.operate(oid, &op);
+
+            io_ctx.exec(oid, LSM_CLASS, LSM_WRITE_NODE, in, out);
+
+            cout << "level 1 object written " << oid.c_str(); 
+
+            level_inventory.insert(std::pair<int, int>(1, level_inventory.find(1)->second+1));
+        } else {
+            std::string oid = root_name + "/level-1/colgrp-0/member-0";
+            ClsLsmClient::cls_lsm_compact(io_ctx, oid);
+        }
+        in_mem_data.clear();
+    }
 }
 
 int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oid)
