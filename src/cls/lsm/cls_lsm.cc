@@ -20,6 +20,8 @@ using ceph::encode;
 CLS_VER(1,0)
 CLS_NAME(lsm)
 
+const int MEMBER_COUNT = 10;
+
 /**
  * initialize an lsm tree node
  */
@@ -60,7 +62,7 @@ static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferl
 /**
  *  read data from node
  */
-static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int cls_lsm_read_key(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {   
     // getting the read parameter
     auto iter = in->cbegin();
@@ -68,7 +70,7 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
     try {
         decode(key, iter);
     } catch (ceph::buffer::error& err) {
-        CLS_LOG(1, "ERROR: cls_lsm_read_node: failed to decode input data \n");
+        CLS_ERR("%s: failed to decode input key \n", __PRETTY_FUNCTION__);
         return -EINVAL;
     }
 
@@ -77,6 +79,18 @@ static int cls_lsm_read_node(cls_method_context_t hctx, bufferlist *in, bufferli
     auto ret = lsm_read_data(hctx, key, entry);
 
     encode(entry, *out); 
+    return ret;
+}
+
+/**
+ * read all data from node
+ */ 
+static int cls_lsm_read_all(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    std::vector<cls_lsm_entry> entries;
+    auto ret = lsm_readall_in_node(hctx, entries);
+
+    encode(entries, *out);
     return ret;
 }
 
@@ -191,6 +205,101 @@ int lsm_compact(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 }
 
 /**
+ * Sort the runs in one column group on one level
+ */
+int lsm_sort(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    // unpack from the input
+    auto in_iter = in->cbegin();
+
+    std::string pool_name;
+    try {
+        decode(pool_name, in_iter);
+    } catch (const ceph::buffer::error& err) {
+        CLS_ERR("%s: failed to decode pool name: %s", __PRETTY_FUNCTION__, err.what());
+        return -EINVAL;
+    }
+
+    std::string tree_name;
+    try {
+        decode(tree_name, in_iter);
+    } catch (const ceph::buffer::error& err) {
+        CLS_ERR("%s: failed to decode tree name: %s", __PRETTY_FUNCTION__, err.what());
+        return -EINVAL;
+    }
+
+    int level;
+    try {
+        decode(level, in_iter);
+    } catch (const ceph::buffer::error& err) {
+        CLS_ERR("%s: failed to decode level: %s", __PRETTY_FUNCTION__, err.what());
+        return -EINVAL;
+    }
+        
+    int group;
+    try {
+        decode(group, in_iter);
+    } catch (const ceph::buffer::error& err) {
+        CLS_ERR("%s: failed to decode group: %s", __PRETTY_FUNCTION__, err.what());
+        return -EINVAL;
+    }
+
+    std::vector<cls_lsm_entry> new_batch;
+    try {
+        decode(new_batch, in_iter);
+    } catch (const ceph::buffer::error& err) {
+        CLS_ERR("%s: failed to decode new batch: %s", __PRETTY_FUNCTION__, err.what());
+        return -EINVAL;
+    }
+
+    // read from the first member first
+    std::vector<cls_lsm_entry> member0_batch;
+    lsm_readall_in_node(hctx, member0_batch);
+
+    std::map<int, std::vector<cls_lsm_entry> > member_batches;
+    member_batches.insert(std::pair<int, std::vector<cls_lsm_entry> >(0, member0_batch));
+
+    std::map<std::string, bufferlist> src_obj_buffs;
+    int r = cls_cxx_get_gathered_data(hctx, &src_obj_buffs);
+    if (src_obj_buffs.empty()) {
+        std::set<std::string> child_objs;
+        for (int i = 1; i < MEMBER_COUNT; i++) {
+            std::string child_obj = tree_name + "/level-" + to_string(level) + "/colgrp-" + to_string(group) + "/member-" + to_string(i);
+            child_objs.insert(child_obj);
+        }
+        r = cls_cxx_gather(hctx, child_objs, pool_name, LSM_CLASS, LSM_READ_ALL, *in);
+    } else {
+        for (std::map<std::string, bufferlist>::iterator it = src_obj_buffs.begin(); it != src_obj_buffs.end(); it++) {
+            bufferlist bl= it->second;
+            auto itr = bl.cbegin();
+
+            int member_id;
+            try {
+                decode(member_id, itr);
+            } catch (const ceph::buffer::error& err) {
+                CLS_ERR("%s: failed to decode member id: %s", __PRETTY_FUNCTION__, err.what());
+            }
+
+            std::vector<cls_lsm_entry> member_batch;
+            try {
+                decode(member_batch, itr);
+            } catch (const ceph::buffer::error& err) {
+                CLS_ERR("%s: failed to decode pool: %s", __PRETTY_FUNCTION__, err.what());
+            }
+
+            member_batches.insert(std::pair<int, std::vector<cls_lsm_entry> >(member_id, member_batch));
+        }
+    }
+
+    std::vector<cls_lsm_entry> sorted_batch;
+    sort_batches(member_batches, new_batch, sorted_batch);
+
+    encode(sorted_batch, *out);
+
+    return r;
+}
+
+/**
  * Write entries into the object node
  */
 int lsm_compact_entries_to_targets(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
@@ -289,7 +398,7 @@ int lsm_gather(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             return -EINVAL;
         }
 
-        r = cls_cxx_gather(hctx, child_objs, pool_name, LSM_CLASS, LSM_READ_NODE, *in);
+        r = cls_cxx_gather(hctx, child_objs, pool_name, LSM_CLASS, LSM_READ_KEY, *in);
     } else {
         cls_lsm_entry entry_result;
         bool entry_result_initialized = false;
@@ -323,11 +432,13 @@ CLS_INIT(lsm)
     cls_handle_t h_class;
     cls_method_handle_t h_lsm_init;
     cls_method_handle_t h_lsm_write_node;
-    cls_method_handle_t h_lsm_read_node;
+    cls_method_handle_t h_lsm_read_key;
+    cls_method_handle_t h_lsm_read_all;
     cls_method_handle_t h_lsm_read_from_internal_nodes;
     cls_method_handle_t h_lsm_compact_entries_to_targets;
     cls_method_handle_t h_lsm_prepare_compaction;
     cls_method_handle_t h_lsm_compact;
+    cls_method_handle_t h_lsm_sort;
     cls_method_handle_t h_lsm_update_post_compaction;
     //cls_method_handle_t h_lsm_prepare_gathering;
     cls_method_handle_t h_lsm_gather;
@@ -336,11 +447,13 @@ CLS_INIT(lsm)
 
     cls_register_cxx_method(h_class, LSM_INIT, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_init, &h_lsm_init);
     cls_register_cxx_method(h_class, LSM_WRITE_NODE, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_write_node, &h_lsm_write_node);
-    cls_register_cxx_method(h_class, LSM_READ_NODE, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_node, &h_lsm_read_node);
+    cls_register_cxx_method(h_class, LSM_READ_KEY, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_key, &h_lsm_read_key);
+    cls_register_cxx_method(h_class, LSM_READ_ALL, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_all, &h_lsm_read_all);
     cls_register_cxx_method(h_class, LSM_READ_FROM_INTERNAL_NODES, CLS_METHOD_RD | CLS_METHOD_WR, cls_lsm_read_from_internal_nodes, &h_lsm_read_from_internal_nodes);
     cls_register_cxx_method(h_class, LSM_COMPACT_ENTRIES_TO_TARGETS, CLS_METHOD_RD | CLS_METHOD_WR, lsm_compact_entries_to_targets, &h_lsm_compact_entries_to_targets);
     cls_register_cxx_method(h_class, LSM_PREPARE_COMPACTION, CLS_METHOD_RD | CLS_METHOD_WR, lsm_prepare_compaction, &h_lsm_prepare_compaction);
     cls_register_cxx_method(h_class, LSM_COMPACT, CLS_METHOD_RD | CLS_METHOD_WR, lsm_compact, &h_lsm_compact);
+    cls_register_cxx_method(h_class, LSM_SORT, CLS_METHOD_RD | CLS_METHOD_WR, lsm_sort, &h_lsm_sort);
     cls_register_cxx_method(h_class, LSM_UPDATE_POST_COMPACTION, CLS_METHOD_RD | CLS_METHOD_WR, lsm_update_post_compaction, &h_lsm_update_post_compaction);
     //cls_register_cxx_method(h_class, LSM_PREPARE_GATHERING, CLS_METHOD_RD | CLS_METHOD_WR, lsm_prepare_gathering, &h_lsm_prepare_gathering);
     cls_register_cxx_method(h_class, LSM_GATHER, CLS_METHOD_RD | CLS_METHOD_WR, lsm_gather, &h_lsm_gather);

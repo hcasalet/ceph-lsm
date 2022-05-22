@@ -90,13 +90,6 @@ class DB {
   ///
   virtual int Delete(const std::string &table, const std::string &key) = 0;
 
-  ///
-  /// Compact
-  ///
-  /// @return Zero on success, a non-zero error code on error.
-  virtual int Compact(const std::string &table) = 0;
-  
-
   virtual bool HaveBalancedDistribution() { return true; };
 
   virtual void PrintStats() {};

@@ -28,7 +28,6 @@ class Client {
   
   virtual bool DoInsert();
   virtual bool DoTransaction();
-  virtual bool DoCompact();
   
   virtual ~Client() { }
   
@@ -49,10 +48,6 @@ inline bool Client::DoInsert() {
   std::vector<DB::KVPair> pairs;
   workload_.BuildValues(pairs);
   return (db_.Insert(workload_.NextTable(), key, pairs) == DB::kOK);
-}
-
-inline bool Client::DoCompact() {
-  return (db_.Compact(workload_.NextTable()) == DB::kOK);
 }
 
 inline bool Client::DoTransaction() {

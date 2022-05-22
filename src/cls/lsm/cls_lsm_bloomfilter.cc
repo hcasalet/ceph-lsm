@@ -25,6 +25,34 @@ void lsm_bloomfilter_clear(std::vector<bool>& bloomfilter_store)
 	std::fill(bloomfilter_store.begin(), bloomfilter_store.end(), 0);
 }
 
+void lsm_bloomfilter_clearall(std::vector<std::vector<bool> >& bloomfilter_stores)
+{
+	for (int i = 0; i < bloomfilter_stores.size(); i++) {
+		std::fill(bloomfilter_stores[i].begin(), bloomfilter_stores[i].end(), 0);
+	}
+	
+}
+
+void lsm_bloomfilter_copy(std::vector<bool>& bloomfilter_store1, std::vector<bool>& bloomfilter_store2)
+{
+	for (int i = 0; i < bloomfilter_store2.size(); i++) {
+		bloomfilter_store1[i] = bloomfilter_store2[i];
+	}
+}
+
+void lsm_bloomfilter_compact(std::vector<std::vector<bool> >& bloomfilter_store_srcs, std::vector<bool>& bloomfilter_store_dest)
+{
+	lsm_bloomfilter_clear(bloomfilter_store_dest);
+
+	for (int i = 0; i < bloomfilter_store_srcs.size(); i++) {
+		for (int j = 0; j < bloomfilter_store_dest.size(); j++) {
+			if (bloomfilter_store_srcs[i][j] == true) {
+				bloomfilter_store_dest[j] = true;
+			}
+		}
+	}
+}
+
 bool lsm_bloomfilter_contains(std::vector<bool>& bloomfilter_store, const std::string& object)
 {
     std::unique_ptr<unsigned char[]> MD5_hash_result_buffer = std::make_unique<unsigned char[]>(MD5_RESULT_SIZE_BYTES);

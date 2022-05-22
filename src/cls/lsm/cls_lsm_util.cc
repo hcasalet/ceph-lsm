@@ -74,9 +74,12 @@ int get_key_range_from_object_id(std::string object_id)
     std::size_t keyrange_end = object_id.find("/columngroup-");
 
     std::string keyrange_str = object_id.substr(key_range_start+10, keyrange_end - key_range_start - 10);
-    int keyrange = stoi(keyrange_str);
 
-    return keyrange;
+    if (keyrange_str.length() > 0) {
+        return stoi(keyrange_str);
+    } else {
+        return 0; 
+    }
 }
 
 int get_level_from_object_id(std::string object_id)
@@ -85,9 +88,12 @@ int get_level_from_object_id(std::string object_id)
     std::size_t level_end = object_id.find("/keyrange-");
 
     std::string level_str = object_id.substr(level_start+7, level_end - level_start - 7);
-    int level = stoi(level_str);
 
-    return level;
+    if (level_str.length() > 0) {
+        return stoi(level_str);
+    } else {
+        return 0;
+    }
 }
 
 void split_column_groups_for_entries(std::vector<cls_lsm_entry>& entries,

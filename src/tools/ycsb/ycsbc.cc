@@ -56,10 +56,6 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
     } else {
       oks += client.DoTransaction();
     }
-
-    if (i == num_ops*3/4) {
-      client.DoCompact();
-    }
   }
   db->Close();
   return oks;

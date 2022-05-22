@@ -6,9 +6,10 @@
 
 using namespace librados;
 
-void ClsLsmClient::InitClient(std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels,
+void ClsLsmClient::InitClient(std::string pool, std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels,
         std::map<int, std::vector<std::vector<std::string>>>& col_map)
 {
+    pool_name = pool;
     tree_name = tree;
     key_low_bound = key_low;
     key_high_bound = key_high;
@@ -21,13 +22,13 @@ void ClsLsmClient::InitClient(std::string tree, uint64_t key_low, uint64_t key_h
         for (int j = 0; j < filters; j++) {
             bloomfilters.push_back(std::vector<bool>(BLOOM_FILTER_STORE_SIZE_64K, false));
         }
-        bloomfilter_store.insert(std::pair<int, std::vector<std::vector<bool>>>(i, bloomfilters));
+        bloomfilter_store.insert(std::make_pair(i, bloomfilters));
         filters *= splits;
     }
 
     for (int i = 1; i <= levels; i++) {
-        level_inventory.insert(std::pair<int, int>(i, 0));
-        level_col_grps.insert(std::pair<int, int>(i, (col_map.find(i)->second).size()));
+        level_inventory.insert(std::make_pair(i, 0));
+        level_col_grps.insert(std::make_pair(i, (col_map.find(i)->second).size()));
     }
 }
 
@@ -110,7 +111,7 @@ int ClsLsmClient::cls_lsm_read(librados::IoCtx& io_ctx, const std::string& pool_
         // read from one single object
         encode(key, in);
 
-        r = io_ctx.exec(obj_ids[0], LSM_CLASS, LSM_READ_NODE, in, out);
+        r = io_ctx.exec(obj_ids[0], LSM_CLASS, LSM_READ_KEY, in, out);
         if (r < 0) {
             return r;
         }
@@ -136,83 +137,102 @@ int ClsLsmClient::cls_lsm_read(librados::IoCtx& io_ctx, const std::string& pool_
 
 void ClsLsmClient::cls_lsm_write(librados::IoCtx& io_ctx, const std::string& root_name, cls_lsm_entry& entry)
 {
-    // register data in the bloomfilter stores
-    lsm_bloomfilter_insert(bloomfilter_store[0][0], to_string(entry.key));
-
     if (in_mem_data.size() < LSM_LEVEL_0_CAPACITY) {
-        in_mem_data.insert(std::pair<uint64_t, cls_lsm_entry>(entry.key, entry));
-    } else {
-        if (level_inventory.find(1)->second < LSM_LEVEL_OBJECT_CAPACITY) {
-            bufferlist in, out;
+        in_mem_data[entry.key] = entry;
 
-            // No need to sort, as std::map is sorted by key ascending
-            for (auto en : in_mem_data) {
-                bufferlist bl_entry;
-                encode(en.second, bl_entry);
-
-                uint64_t encoded_len = bl_entry.length();
-                encode(encoded_len, in);
-                in.claim_append(bl_entry);
-            }
-
-            //librados::ObjectWriteOperation op;
-            //op.create(true);
-
-            //op.exec(LSM_CLASS, LSM_WRITE_NODE, in);
-            std::string oid = root_name + "/level-1/colgrp-0/member-"+to_string(level_inventory.find(1)->second);
-            //io_ctx.operate(oid, &op);
-
-            io_ctx.exec(oid, LSM_CLASS, LSM_WRITE_NODE, in, out);
-
-            cout << "level 1 object written " << oid.c_str(); 
-
-            level_inventory.insert(std::pair<int, int>(1, level_inventory.find(1)->second+1));
-        } else {
-            std::string oid = root_name + "/level-1/colgrp-0/member-0";
-            ClsLsmClient::cls_lsm_compact(io_ctx, oid);
+        // register data in the bloomfilter stores
+        lsm_bloomfilter_insert(bloomfilter_store[0][0], to_string(entry.key));
+    } else if (level_inventory.find(1)->second < LSM_LEVEL_OBJECT_CAPACITY) {
+        bufferlist in, out;
+        for (auto ent : in_mem_data) {
+            bufferlist bl_entry;
+            encode(ent.second, bl_entry);
+            uint16_t entry_size = bl_entry.length();
+            encode(entry_size, in);
+            in.claim_append(bl_entry);
         }
+        std::string oid = tree_name + "/level-1/colgrp-0/member-" + to_string(level_inventory.find(1)->second);
+        io_ctx.exec(oid, LSM_CLASS, LSM_WRITE_NODE, in, out);
+        lsm_bloomfilter_clear(bloomfilter_store[1][level_inventory.find(1)->second]);
+        lsm_bloomfilter_copy(bloomfilter_store[1][level_inventory.find(1)->second], bloomfilter_store[0][0]);
+        lsm_bloomfilter_clear(bloomfilter_store[0][0]);
+
+        in_mem_data.clear();
+        level_inventory[1] = level_inventory[1] + 1;
+    } else {
+        std::vector<cls_lsm_entry> ins;
+        for (auto ent : in_mem_data) {
+            ins.push_back(ent.second);
+        }
+        ClsLsmClient::cls_lsm_compact(io_ctx, ins);
+
         in_mem_data.clear();
     }
 }
 
-int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oid)
+int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, std::vector<cls_lsm_entry>& input)
 {
-    // get level from object_id
-    int level = get_level_from_object_id(oid);
+    int level = 2;
+    std::vector<bufferlist> newins;
 
-    bufferlist in, out, in2;
-    encode(column_map[level], in);
+    std::vector<std::vector<cls_lsm_entry> > ins;
+    ins.push_back(input);
 
-    // Get ready to call scatter
-    int r = io_ctx.exec(oid, LSM_CLASS, LSM_PREPARE_COMPACTION, in, out);
-    if (r < 0) {
-        return r;
+    bufferlist out;
+
+    while (level <= levels) {
+        newins.clear();
+
+        if (level == 1) {
+            for (auto item : input) {
+                bufferlist bl_item;
+                encode(item, bl_item);
+
+            }
+        }
+        ClsLsmClient::crack(ins, level_col_grps.find(level)->second, newins);
+
+        if (level == levels || level_inventory.find(level)->second < LSM_LEVEL_OBJECT_CAPACITY) {
+
+            for (int group = 0; group < level_col_grps.find(level)->second; group++) {
+                bufferlist out;
+                std::string oid = tree_name + "/level-" + to_string(level) + "/colgrp-" + to_string(group) + "/member-" + to_string(level_inventory.find(level)->second);
+                io_ctx.exec(oid, LSM_CLASS, LSM_WRITE_NODE, newins[group], out);
+            }
+
+            lsm_bloomfilter_compact(bloomfilter_store[level-1], bloomfilter_store[level][level_inventory.find(level)->second]);
+            lsm_bloomfilter_clearall(bloomfilter_store[level-1]);
+            level_inventory[level] = level_inventory[level] + 1;
+
+            break;
+
+        } else {
+            ins.clear();
+
+            for (int group = 0; group < level_col_grps.find(level)->second; group++) {
+                bufferlist in, out;
+
+                encode(pool_name, in);
+                encode(tree_name, in);
+                encode(level, in);
+                encode(level_col_grps.find(level)->second, in);
+                encode(newins[group], in);
+
+                std::string oid = tree_name + "/level-" + to_string(level-1) + "/colgrp-" + to_string(group) +"/member-0";
+                io_ctx.exec(oid, LSM_CLASS, LSM_SORT, in, out);
+
+                // Potential optimization: out was serialized in LSM_SORT, and de-serialized in 
+                // the following get_entry_groups
+                std::vector<cls_lsm_entry> sorted;
+                ClsLsmClient::get_entry_groups(out, sorted);
+
+                ins.push_back(sorted);
+            }
+
+            level_inventory[level] = 0;
+            level += 1;
+        }
     }
-
-    // get the result
-    in2 = out;
-
-    in.clear();
-    in.claim_append(out);
-
-    // call scatter to compact
-    r = io_ctx.exec(oid, LSM_CLASS, LSM_COMPACT, in, out);
-    if (r < 0) {
-        return r;
-    }
-
-    // update the bloomfilters for the child objects to be compacted to
-    ClsLsmClient::update_bloomfilter(in2, level);
-
-    // clear all data out of the compacted object
-    r = io_ctx.exec(oid, LSM_CLASS, LSM_UPDATE_POST_COMPACTION, in, out);
-    if (r < 0) {
-        return r;
-    }
-
-    // clear bloomfilter for the compacted object
-    int keyrange = get_key_range_from_object_id(oid);
-    lsm_bloomfilter_clear(bloomfilter_store[level][keyrange]);
     
     return 0;
 }
@@ -282,6 +302,80 @@ int ClsLsmClient::update_bloomfilter(bufferlist in, int level)
             lsm_bloomfilter_insert(bloomfilter_store[level][key_group], to_string(new_entry.key));
         }
     }
+
+    return 0;
+}
+
+void ClsLsmClient::crack(std::vector<std::vector<cls_lsm_entry> >& entry_groups, int groups, std::vector<bufferlist>& newins)
+{
+    newins.clear();
+
+    for (uint64_t i = 0; i < entry_groups.size(); i++) {
+
+        std::vector<bufferlist> ins;
+        for (int j = 0; j < groups; j++) {
+            bufferlist bl;
+            ins.push_back(bl);
+        }
+        
+        for (auto entry : entry_groups[i]) {
+            std::vector<cls_lsm_entry> split_entries;
+            for (int j = 0; j < groups; j++) {
+                cls_lsm_entry split_entry;
+                split_entry.key = entry.key;
+                split_entries.push_back(split_entry);
+            }
+
+            int i = 0;
+            for (auto item : entry.value) {
+                split_entries[i%groups].value.insert(std::pair<std::string, bufferlist>(item.first, item.second));
+                i += 1;
+            }
+
+            std::vector<bufferlist> bl_entries;
+            for (int j = 0; j < groups; j++) {
+                bufferlist bl_entry;
+                encode(split_entries[j], bl_entry);
+
+                uint64_t entry_size = bl_entry.length();
+                encode(entry_size, ins[j]);
+                ins[j].claim_append(bl_entry);
+            }
+        }
+
+        newins.insert(newins.end(), ins.begin(), ins.end());
+    }
+}
+
+int ClsLsmClient::get_entry_groups(bufferlist& in, std::vector<cls_lsm_entry>& entries)
+{
+    auto it = in.cbegin();
+    uint64_t size_to_process = in.length();
+
+    do {
+        uint64_t data_size = 0;
+        try {
+            decode(data_size, it);
+        } catch (const ceph::buffer::error& err) {
+            return -EINVAL;
+        }
+        size_to_process -= sizeof(uint64_t);
+
+        if (data_size > size_to_process) {
+            break;
+        }
+
+        cls_lsm_entry entry;
+        try {
+            decode(entry, it);
+        } catch (const ceph::buffer::error& err) {
+            return -EINVAL;
+        }
+        size_to_process -= data_size;
+
+        entries.push_back(entry);
+
+    } while (size_to_process > 0);
 
     return 0;
 }

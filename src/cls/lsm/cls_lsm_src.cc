@@ -95,6 +95,53 @@ int lsm_read_data(cls_method_context_t hctx, uint64_t key, cls_lsm_entry& entry)
 }
 
 /**
+ * Read all data in a node
+ */
+int lsm_readall_in_node(cls_method_context_t hctx, std::vector<cls_lsm_entry>& entries)
+{
+    entries.clear();
+
+    cls_lsm_node_head head;
+    auto ret = lsm_read_node_head(hctx, head);
+    if (ret < 0) {
+        CLS_ERR("%s: reading node head failed", __PRETTY_FUNCTION__);
+        return ret;
+    }
+
+    bufferlist bl_chunk;
+    ret = cls_cxx_read(hctx, head.data_start_offset, head.data_end_offset, &bl_chunk);
+
+    auto it = bl_chunk.cbegin();
+    uint64_t size_to_read = bl_chunk.length();
+
+    do {
+        uint64_t data_size = 0;
+        try {
+            decode(data_size, it);
+        } catch (ceph::buffer::error& err) {
+            CLS_ERR("%s: error decoding data size", __PRETTY_FUNCTION__);
+        }
+
+        size_to_read -= sizeof(uint64_t);
+        if (data_size > size_to_read) {
+            CLS_ERR("%s: not enough data to read, breaking the loop...", __PRETTY_FUNCTION__);
+            break;
+        }
+
+        cls_lsm_entry entry;
+        try {
+            decode(entry, it);
+        } catch (ceph::buffer::error& err) {
+            CLS_ERR("%s: error decoding entry", __PRETTY_FUNCTION__);
+        }
+
+        entries.push_back(entry);
+    } while (size_to_read > 0);
+
+    return 0;
+}
+
+/**
  * Read node head
  */
 int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head)
@@ -367,4 +414,48 @@ std::vector<cls_lsm_entry> lsm_make_data_entries_for_children(std::vector<cls_ls
     }
 
     return child_entries;
+}
+
+/**
+ * sort batches during sort merge
+ */
+void sort_batches(std::map<int, std::vector<cls_lsm_entry> > batches, std::vector<cls_lsm_entry> new_batch, std::vector<cls_lsm_entry> sorted_batch)
+{
+    std::vector<cls_lsm_entry> start = batches[0];
+    std::vector<cls_lsm_entry> result;
+
+    for (uint64_t i = 1; i < batches.size(); i++) {
+        sort_two(start, batches[i], result);
+        start = result;
+        result.clear();
+    }
+
+    sort_two(start, new_batch, sorted_batch);
+}
+
+/**
+ * sort two batches at a time
+ */
+void sort_two(std::vector<cls_lsm_entry> start, std::vector<cls_lsm_entry> step, std::vector<cls_lsm_entry> result)
+{
+    uint64_t i = 0, j = 0;
+    while (i < start.size() && j < step.size()) {
+        if (start[i].key <= step[j].key) {
+            result.push_back(start[i]);
+            i++;
+        } else {
+            result.push_back(step[j]);
+            j++;
+        }
+    }
+
+    while (i < start.size()) {
+        result.push_back(start[i]);
+        i++;
+    }
+
+    while (j < step.size()) {
+        result.push_back(step[j]);
+        j++;
+    }
 }

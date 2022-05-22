@@ -14,8 +14,8 @@ table=cephlsm
 #recordcount=100000
 #operationcount=10000
 
-recordcount=20
-operationcount=20
+recordcount=40
+operationcount=40
 workload=com.yahoo.ycsb.workloads.CoreWorkload
 
 readallfields=false

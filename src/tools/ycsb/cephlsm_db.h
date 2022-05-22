@@ -40,8 +40,6 @@ namespace ycsbc {
 
         int Delete(const std::string &table, const std::string &key);
 
-        int Compact(const std::string &table);
-
         ~CephLsmDB();
     
     private:

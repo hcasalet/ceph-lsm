@@ -13,7 +13,7 @@ class ClsLsmClient {
 public:
     ClsLsmClient() {};
 
-    void InitClient(std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels, 
+    void InitClient(std::string pool, std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels, 
             std::map<int, std::vector<std::vector<std::string>>>& col_map);
  
     /**
@@ -61,9 +61,9 @@ public:
     * Compact API
     * 
     * Input: 
-    * - oid: object id of the node to be compacted
+    * - io_ctx: context of io
     */
-    int cls_lsm_compact(librados::IoCtx& io_ctx, const std::string& oid);
+    int cls_lsm_compact(librados::IoCtx& io_ctx, std::vector<cls_lsm_entry>& ins);
 
     /**
     * Gather API
@@ -79,6 +79,7 @@ public:
                  std::vector<cls_lsm_entry>& entries);
 
 private:
+    std::string pool_name;
     std::string tree_name;
     uint64_t key_low_bound;
     uint64_t key_high_bound;
@@ -91,6 +92,10 @@ private:
     std::map<int, std::vector<std::vector<std::string>>> column_map;
    
     int update_bloomfilter(bufferlist in, int level);
+
+    void crack(std::vector<std::vector<cls_lsm_entry> >& entry_groups, int groups, std::vector<bufferlist>& newins);
+
+    int get_entry_groups(bufferlist& in, std::vector<cls_lsm_entry>& entries);
 };
 
 #endif

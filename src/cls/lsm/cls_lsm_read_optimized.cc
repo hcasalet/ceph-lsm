@@ -114,7 +114,7 @@ int ClsReadOptimizedClient::cls_read_optimized_read(librados::IoCtx& io_ctx, con
         // read from one single object
         encode(key, in);
 
-        r = io_ctx.exec(obj_ids[0], LSM_CLASS, LSM_READ_NODE, in, out);
+        r = io_ctx.exec(obj_ids[0], LSM_CLASS, LSM_READ_KEY, in, out);
         if (r < 0) {
             return r;
         }

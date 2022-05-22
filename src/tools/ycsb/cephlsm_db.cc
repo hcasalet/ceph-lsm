@@ -42,7 +42,7 @@ namespace ycsbc {
             col_map[i] = cols_0;
         }
 
-        dbClient.InitClient(props["dbname"], 0, 10240000000000000, 8, levels, col_map);
+        dbClient.InitClient(props["dbname"], props["dbname"], 0, 10240000000000000, 8, levels, col_map);
     }
 
     int CephLsmDB::Read(const std::string &table, const std::string &key, const std::vector<std::string> *fields,
@@ -85,12 +85,6 @@ namespace ycsbc {
     int CephLsmDB::Delete(const std::string &table, const std::string &key)
     {
         return 0;
-    }
-
-    int CephLsmDB::Compact(const std::string &table)
-    {
-        dbClient.cls_lsm_compact(ioctx, table);
-        return CephLsmDB::kOK;
     }
 
     CephLsmDB::~CephLsmDB() {

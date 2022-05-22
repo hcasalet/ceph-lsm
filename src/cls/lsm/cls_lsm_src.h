@@ -16,6 +16,11 @@ int lsm_init(cls_method_context_t hctx, const cls_lsm_init_op& op);
 int lsm_read_data(cls_method_context_t hctx, uint64_t key, cls_lsm_entry& entry);
 
 /**
+ * Read all data in one object
+ */
+int lsm_readall_in_node(cls_method_context_t hctx, std::vector<cls_lsm_entry>& entries);
+
+/**
  * Read the node head of a non-root object
  */
 int lsm_read_node_head(cls_method_context_t hctx, cls_lsm_node_head& node_head);
@@ -66,5 +71,15 @@ std::vector<std::set<std::string>> lsm_make_column_group_splits_for_children(std
  * Make data entries for children
  */
 std::vector<cls_lsm_entry> lsm_make_data_entries_for_children(std::vector<cls_lsm_entry>& entries, std::set<std::string>& columns);
+
+/**
+ * sort data in all runs on one level
+ */
+void sort_batches(std::map<int, std::vector<cls_lsm_entry> > batches, std::vector<cls_lsm_entry> new_batch, std::vector<cls_lsm_entry> sorted_batch);
+
+/**
+ * sort two batches of entries
+ */
+void sort_two(std::vector<cls_lsm_entry> start, std::vector<cls_lsm_entry> step, std::vector<cls_lsm_entry> result);
 
 #endif /* CEPH_CLS_LSM_SRC_H */
