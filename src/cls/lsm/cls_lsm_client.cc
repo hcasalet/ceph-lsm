@@ -332,7 +332,8 @@ void ClsLsmClient::crack(std::vector<std::vector<cls_lsm_entry> >& entry_groups,
 
 int ClsLsmClient::get_entry_groups(std::vector<bufferlist>& ins, std::vector<std::vector<cls_lsm_entry> >& entries_groups, std::set<uint64_t>& keys)
 {
-    entries.clear();
+    entries_groups.clear();
+    keys.clear();
 
     bool get_keys = true;
     for (auto in : ins) {
