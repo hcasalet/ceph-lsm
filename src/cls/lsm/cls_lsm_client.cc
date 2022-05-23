@@ -208,7 +208,8 @@ int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, std::vector<cls_lsm_e
 
         if (level == levels || level_inventory[level] < LSM_LEVEL_OBJECT_CAPACITY) {
             for (int group = 0; group < level_col_grps.find(level)->second; group++) {
-                std::string oid = tree_name + "/level-" + to_string(level) + "/colgrp-" + to_string(group) + "/member-" + to_string(level_inventory.[level]);
+                bufferlist out;
+                std::string oid = tree_name + "/level-" + to_string(level) + "/colgrp-" + to_string(group) + "/member-" + to_string(level_inventory[level]);
                 io_ctx.exec(oid, LSM_CLASS, LSM_WRITE_NODE, sorted_list[group], out);
             }
             lsm_bloomfilter_insertAll(bloomfilter_store[level][level_inventory[level]], keys);
