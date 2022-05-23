@@ -93,9 +93,9 @@ private:
    
     int update_bloomfilter(bufferlist in, int level);
 
-    void crack(std::vector<std::vector<cls_lsm_entry> >& entry_groups, int groups, std::vector<bufferlist>& newins);
+    void crack(std::vector<std::vector<cls_lsm_entry> >& entry_groups, int groups, std::vector<std::vector<cls_lsm_entry> >& newins);
 
-    int get_entry_groups(bufferlist& in, std::vector<cls_lsm_entry>& entries);
+    int get_entry_groups(std::vector<bufferlist>& ins, std::vector<std::vector<cls_lsm_entry> >& entries_groups, std::vector<uint64_t>& keys);
 };
 
 #endif

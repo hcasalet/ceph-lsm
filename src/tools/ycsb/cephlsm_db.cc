@@ -16,7 +16,7 @@ namespace ycsbc {
             exit(0);
         }
 
-        int levels = 2;
+        int levels = 3;
         uint32_t field_count = stoi(props.GetProperty(CoreWorkload::FIELD_COUNT_PROPERTY,CoreWorkload::FIELD_COUNT_DEFAULT));
         std::map<int, std::vector<std::vector<std::string>>> col_map;
 
