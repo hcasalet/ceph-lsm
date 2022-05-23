@@ -20,7 +20,7 @@ void lsm_bloomfilter_insert(std::vector<bool>& bloomfilter_store, const std::str
 	}
 }
 
-void lsm_bloomfilter_insertAll(std::vector<bool>& bloomfilter_store, const std::set<uint64_t>& keys)
+void lsm_bloomfilter_insertAll(std::vector<bool>& bloomfilter_store, std::set<uint64_t>& keys)
 {
 	for (auto key : keys) {
 		const std::string object = to_string(key);

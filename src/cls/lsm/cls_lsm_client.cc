@@ -178,7 +178,7 @@ int ClsLsmClient::cls_lsm_compact(librados::IoCtx& io_ctx, std::vector<cls_lsm_e
 
     int level = 2;
     std::vector<bufferlist> sorted_list;
-    std::vector<uint64_t> keys;
+    std::set<uint64_t> keys;
 
     while (level <= levels) {
         newins.clear();
