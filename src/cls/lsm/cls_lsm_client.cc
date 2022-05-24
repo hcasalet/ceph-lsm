@@ -7,7 +7,7 @@
 using namespace librados;
 
 void ClsLsmClient::InitClient(std::string pool, std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels,
-        std::map<int, std::vector<std::vector<std::string>>>& col_map)
+        int num_cols, std::map<int, std::vector<std::vector<std::string>>>& col_map)
 {
     pool_name = pool;
     tree_name = tree;
@@ -28,8 +28,16 @@ void ClsLsmClient::InitClient(std::string pool, std::string tree, uint64_t key_l
 
     for (int i = 1; i <= levels; i++) {
         level_inventory.insert(std::make_pair(i, 0));
-        level_col_grps.insert(std::make_pair(i, (col_map.find(i)->second).size()));
+
+        if (i == 1) {
+            level_col_grps.insert(std::make_pair(i, 1));
+        } else if (i < levels) {
+            level_col_grps.insert(std::make_pair(i, 2));
+        } else {
+            level_col_grps.insert(std::make_pair(i, ((num_cols-1)/pow(2, (levels - 2))+1)));
+        }
     }
+
 }
 
 void ClsLsmClient::cls_lsm_init(librados::ObjectWriteOperation& op,
