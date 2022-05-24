@@ -14,7 +14,7 @@ public:
     ClsLsmClient() {};
 
     void InitClient(std::string pool, std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels, 
-            std::map<int, std::vector<std::vector<std::string>>>& col_map);
+            int num_cols, std::map<int, std::vector<std::vector<std::string>>>& col_map);
  
     /**
     * Initialize the lsm tree, which essentially is to create the root node
