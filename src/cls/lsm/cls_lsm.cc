@@ -20,8 +20,6 @@ using ceph::encode;
 CLS_VER(1,0)
 CLS_NAME(lsm)
 
-const int MEMBER_COUNT = 10;
-
 /**
  * initialize an lsm tree node
  */
@@ -50,7 +48,6 @@ static int cls_lsm_init(cls_method_context_t hctx, bufferlist *in, bufferlist *o
  */ 
 static int cls_lsm_write_node(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    CLS_ERR("jumped in");
     int ret = cls_cxx_write(hctx, 0, in->length(), in);
     if (ret < 0) {
         CLS_ERR("%s: failed writing level 1 node", __PRETTY_FUNCTION__);
@@ -263,7 +260,7 @@ int lsm_sort(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     int r = cls_cxx_get_gathered_data(hctx, &src_obj_buffs);
     if (src_obj_buffs.empty()) {
         std::set<std::string> child_objs;
-        for (int i = 1; i < MEMBER_COUNT; i++) {
+        for (int i = 1; i < LSM_LEVEL_OBJECT_CAPACITY; i++) {
             std::string child_obj = tree_name + "/level-" + to_string(level) + "/colgrp-" + to_string(group) + "/member-" + to_string(i);
             child_objs.insert(child_obj);
         }
