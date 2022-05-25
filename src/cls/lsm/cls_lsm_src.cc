@@ -109,10 +109,12 @@ int lsm_readall_in_node(cls_method_context_t hctx, std::vector<cls_lsm_entry>& e
     }*/
 
     bufferlist bl_chunk;
-    ret = cls_cxx_read(hctx, 0, 0, &bl_chunk);
+    auto ret = cls_cxx_read(hctx, 0, 0, &bl_chunk);
 
     auto it = bl_chunk.cbegin();
     uint64_t size_to_read = bl_chunk.length();
+
+    CLS_LOG(1, "Holly read %ld", size_to_read);
 
     do {
         uint16_t data_size = 0;
