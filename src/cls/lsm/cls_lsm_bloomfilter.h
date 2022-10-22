@@ -8,6 +8,7 @@ constexpr unsigned int MD5_RESULT_SIZE_BYTES = 16;
 constexpr unsigned int HASH_FUNCTION_COUNT = 4;
 
 void lsm_bloomfilter_insert(std::vector<bool>& bloomfilter_store, const std::string& object);
+void lsm_bloomfilter_insertAll(std::vector<bool>& bloomfilter_store, std::set<uint64_t>& keys);
 void lsm_bloomfilter_clear(std::vector<bool>& bloomfilter_store);
 void lsm_bloomfilter_clearall(std::vector<std::vector<bool> >& bloomfilter_stores);
 void lsm_bloomfilter_copy(std::vector<bool>& bloomfilter_store1, std::vector<bool>& bloomfilter_store2);

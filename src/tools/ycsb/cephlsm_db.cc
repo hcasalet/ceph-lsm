@@ -16,7 +16,7 @@ namespace ycsbc {
             exit(0);
         }
 
-        int levels = 2;
+        int levels = 3;
         uint32_t field_count = stoi(props.GetProperty(CoreWorkload::FIELD_COUNT_PROPERTY,CoreWorkload::FIELD_COUNT_DEFAULT));
         std::map<int, std::vector<std::vector<std::string>>> col_map;
 
@@ -42,7 +42,7 @@ namespace ycsbc {
             col_map[i] = cols_0;
         }
 
-        dbClient.InitClient(props["dbname"], props["dbname"], 0, 10240000000000000, 8, levels, col_map);
+        dbClient.InitClient(props["dbname"], props["dbname"], 0, 10240000000000000, 8, levels, field_count, col_map);
     }
 
     int CephLsmDB::Read(const std::string &table, const std::string &key, const std::vector<std::string> *fields,

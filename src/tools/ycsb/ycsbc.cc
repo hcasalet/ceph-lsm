@@ -29,7 +29,7 @@ atomic<uint64_t> ops_time[ycsbc::Operation::READMODIFYWRITE + 1];
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
-void Init(utils::Properties &props);
+void Init(utils::Properties &props, std::string dbname, std::string dbpath);
 void PrintInfo(utils::Properties &props);
 
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
@@ -63,7 +63,12 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
 
 int main( const int argc, const char *argv[]) {
   utils::Properties props;
-  Init(props);
+  std::cout << "dbname=" << argv[2] << std::endl;
+  std::string databasepath = "";
+  if (argv[2] == std::string("leveldb")) {
+    databasepath = "/tmp/test-leveldb";
+  }
+  Init(props, argv[2], databasepath);
   string file_name = ParseCommandLine(argc, argv, props);
 
   ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props);
@@ -71,6 +76,7 @@ int main( const int argc, const char *argv[]) {
     cout << "Unknown database name " << props["dbname"] << endl;
     exit(0);
   }
+  std::cout << "db name: " << props["dbname"] << std::endl;
 
   const bool load = utils::StrToBool(props.GetProperty("load","false"));
   const bool run = utils::StrToBool(props.GetProperty("run","false"));
@@ -408,9 +414,11 @@ inline bool StrStartWith(const char *str, const char *pre) {
   return strncmp(str, pre, strlen(pre)) == 0;
 }
 
-void Init(utils::Properties &props){
-  props.SetProperty("dbname","cephlsm");
-  props.SetProperty("dbpath","");
+void Init(utils::Properties &props, std::string dbname, std::string dbpath){
+  //props.SetProperty("dbname","leveldb");
+  //props.SetProperty("dbpath","/tmp/test-leveldb");
+  props.SetProperty("dbname", dbname);
+  props.SetProperty("dbpath", dbpath);
   props.SetProperty("load","false");
   props.SetProperty("run","false");
   props.SetProperty("threadcount","1");

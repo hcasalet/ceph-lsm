@@ -1,6 +1,7 @@
 set(ycsb_cephlsm_srcs
   ycsbc.cc
   cephlsm_db.cc
+  level_db.cc
   readoptimized_db.cc
   writeoptimized_db.cc
   db_factory.cc
@@ -11,6 +12,7 @@ target_link_libraries(
     cls_lsm_client
     cls_lsm_read_optimized
     cls_lsm_write_optimized
+    kv
     librados
     global
     ${BLKID_LIBRARIES}

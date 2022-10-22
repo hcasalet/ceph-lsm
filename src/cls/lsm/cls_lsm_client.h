@@ -14,7 +14,7 @@ public:
     ClsLsmClient() {};
 
     void InitClient(std::string pool, std::string tree, uint64_t key_low, uint64_t key_high, int splits, int levels, 
-            std::map<int, std::vector<std::vector<std::string>>>& col_map);
+            int num_cols, std::map<int, std::vector<std::vector<std::string>>>& col_map);
  
     /**
     * Initialize the lsm tree, which essentially is to create the root node
@@ -93,9 +93,9 @@ private:
    
     int update_bloomfilter(bufferlist in, int level);
 
-    void crack(std::vector<std::vector<cls_lsm_entry> >& entry_groups, int groups, std::vector<bufferlist>& newins);
+    void crack(std::vector<std::vector<cls_lsm_entry> >& entry_groups, int groups, std::vector<std::vector<cls_lsm_entry> >& newins);
 
-    int get_entry_groups(bufferlist& in, std::vector<cls_lsm_entry>& entries);
+    int get_entry_groups(std::vector<bufferlist>& ins, std::vector<std::vector<cls_lsm_entry> >& entries_groups, std::set<uint64_t>& keys);
 };
 
 #endif

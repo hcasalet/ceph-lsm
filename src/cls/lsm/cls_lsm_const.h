@@ -18,7 +18,7 @@
 #define LSM_PREPARE_GATHERING "lsm_prepare_gathering"
 #define LSM_GATHER "lsm_gather"
 
-#define LSM_LEVEL_0_CAPACITY 10
+#define LSM_LEVEL_0_CAPACITY 1000
 #define LSM_LEVEL_OBJECT_CAPACITY 4
 
 #endif

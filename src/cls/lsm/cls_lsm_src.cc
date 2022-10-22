@@ -101,28 +101,28 @@ int lsm_readall_in_node(cls_method_context_t hctx, std::vector<cls_lsm_entry>& e
 {
     entries.clear();
 
-    cls_lsm_node_head head;
+    /*cls_lsm_node_head head;
     auto ret = lsm_read_node_head(hctx, head);
     if (ret < 0) {
         CLS_ERR("%s: reading node head failed", __PRETTY_FUNCTION__);
         return ret;
-    }
+    }*/
 
     bufferlist bl_chunk;
-    ret = cls_cxx_read(hctx, head.data_start_offset, head.data_end_offset, &bl_chunk);
+    auto ret = cls_cxx_read(hctx, 0, 0, &bl_chunk);
 
     auto it = bl_chunk.cbegin();
     uint64_t size_to_read = bl_chunk.length();
 
     do {
-        uint64_t data_size = 0;
+        uint16_t data_size = 0;
         try {
             decode(data_size, it);
         } catch (ceph::buffer::error& err) {
             CLS_ERR("%s: error decoding data size", __PRETTY_FUNCTION__);
         }
 
-        size_to_read -= sizeof(uint64_t);
+        size_to_read -= sizeof(uint16_t);
         if (data_size > size_to_read) {
             CLS_ERR("%s: not enough data to read, breaking the loop...", __PRETTY_FUNCTION__);
             break;

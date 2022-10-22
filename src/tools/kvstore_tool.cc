@@ -35,7 +35,7 @@ StoreTool::StoreTool(const string& type,
   } else {
     auto db_ptr = KeyValueDB::create(g_ceph_context, type, path);
     if (!to_repair) {
-      if (int r = db_ptr->open(std::cerr); r < 0) {
+      if (int r = db_ptr->create_and_open(std::cerr); r < 0) {
         cerr << "failed to open type " << type << " path " << path << ": "
              << cpp_strerror(r) << std::endl;
         exit(1);

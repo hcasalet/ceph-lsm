@@ -58,4 +58,6 @@ bin/ceph_test_cls_lsm
 bin/rados -p <pool_name> ls
 
 # Run YCSB
-./bin/ycsb_cephlsm -db cephlsm -P "../src/tools/ycsb/workloads/workloadd.spec" -threads 4 -load true -run true
+./bin/ycsb_cephlsm -db cephlsm -P "../src/tools/ycsb/workloads/test_workloada.spec" -threads 1 -load true -run true
+
+./bin/ycsb_cephlsm -db leveldb -P "../src/tools/ycsb/workloads/test_workloada.spec" -threads 1 -load true -run true
