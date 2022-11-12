@@ -11,13 +11,13 @@
 # which orders items purely by time, and demands the latest, is very different than 
 # workload here (which we believe is more typical of how people build systems.)
 keylength=16
-fieldcount=8
-fieldlength=16
+fieldcount=10
+fieldlength=100
 poolname=cephlsm
-table=cephlsm/level-0/keyrange-0/columngroup-0
+table=cephlsm4
 
 recordcount=100000
-operationcount=10000
+operationcount=100000
 workload=com.yahoo.ycsb.workloads.CoreWorkload
 
 readallfields=false

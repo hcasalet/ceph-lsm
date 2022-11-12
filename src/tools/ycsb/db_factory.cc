@@ -14,6 +14,8 @@
 #include "readoptimized_db.h"
 #include "writeoptimized_db.h"
 #include "level_db.h"
+#include "rocks_db.h"
+#include "cabin_db.h"
 
 using namespace std;
 using ycsbc::DB;
@@ -30,5 +32,11 @@ DB* DBFactory::CreateDB(utils::Properties &props) {
   } else if (props["dbname"] == "leveldb") {
     std::cout << "creating leveldb" << std::endl;
     return new LevelDB(props);
+  } else if (props["dbname"] == "rocksdb") {
+    std::cout << "creating rocksdb" << std::endl;
+    return new RocksDB(props);
+  } else if (props["dbname"] == "cabindb") {
+    std::cout << "creating cabindb" << std::endl;
+    return new CabinDB(props);
   } else return NULL;
 }

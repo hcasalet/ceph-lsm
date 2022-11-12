@@ -582,6 +582,12 @@ if (WITH_SYSTEM_ROCKSDB)
   find_package(RocksDB 5.14 REQUIRED)
 endif()
 
+# Cabindb
+# option(WITH_SYSTEM_CABINDB "require and build with system cabindb" ON)
+#if (WITH_SYSTEM_CABINDB)
+#  find_package(CabinDB 5.14 REQUIRED)
+#endif()
+
 option(WITH_SEASTAR "Build seastar components")
 set(HAVE_SEASTAR ${WITH_SEASTAR})
 

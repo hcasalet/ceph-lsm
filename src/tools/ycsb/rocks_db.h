@@ -1,3 +1,12 @@
+#ifndef YCSB_C_ROCKS_DB_H
+#define YCSB_C_ROCKS_DB_H
+
+#include "core/db.h"
+
+#include <stdlib.h>
+#include <errno.h>
+#include <string>
+
 #include "include/types.h"
 #include "gtest/gtest.h"
 #include "test/librados/test_cxx.h"

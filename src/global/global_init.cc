@@ -106,14 +106,12 @@ void global_pre_init(
   uint32_t module_type, code_environment_t code_env,
   int flags)
 {
-  std::cout << "Entering global pre init" << std::endl;
   std::string conf_file_list;
   std::string cluster = "";
 
   // ensure environment arguments are included in early processing
   env_to_vec(args);
 
-  std::cout << "Passing pushing env to args : " << std::endl;
   CephInitParameters iparams = ceph_argparse_early_args(
     args, module_type,
     &cluster, &conf_file_list);

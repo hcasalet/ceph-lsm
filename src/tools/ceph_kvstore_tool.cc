@@ -28,7 +28,7 @@
 
 void usage(const char *pname)
 {
-  std::cout << "Usage: " << pname << " <leveldb|rocksdb|bluestore-kv> <store path> command [args...]\n"
+  std::cout << "Usage: " << pname << " <leveldb|rocksdb|cabindb|bluestore-kv> <store path> command [args...]\n"
     << "\n"
     << "Commands:\n"
     << "  list [prefix]\n"
@@ -91,6 +91,7 @@ int main(int argc, const char *argv[])
 
   if (type != "leveldb" &&
       type != "rocksdb" &&
+      type != "cabindb" &&
       type != "bluestore-kv")  {
 
     std::cerr << "Unrecognized type: " << args[0] << std::endl;

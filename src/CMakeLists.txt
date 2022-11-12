@@ -657,6 +657,11 @@ if(NOT WITH_SYSTEM_ROCKSDB)
   build_rocksdb()
 endif(NOT WITH_SYSTEM_ROCKSDB)
 
+if(NOT WITH_SYSTEM_CABINDB)
+  include(BuildCabinDB)
+  build_cabindb()
+endif(NOT WITH_SYSTEM_CABINDB)
+
 include(TestBigEndian)
 test_big_endian(CEPH_BIG_ENDIAN)
 if(NOT CEPH_BIG_ENDIAN)
@@ -665,6 +670,7 @@ endif()
 
 add_subdirectory(kv)
 add_subdirectory(os)
+add_subdirectory(cabindb)
 
 if(NOT WIN32)
 add_subdirectory(blk)
@@ -993,6 +999,7 @@ if(DOXYGEN_FOUND)
     json_spirit
     key_value_store
     kv
+    cabindb
     librados
     libradosstriper
     librbd

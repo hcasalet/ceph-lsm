@@ -23,7 +23,9 @@ namespace ycsbc {
         std::string path = props.GetProperty("dbpath","/tmp/test-rocksdb");
         std::cout << "Finished initializing, dbpath=" << path << std::endl;
 
-        auto db_ptr =  new RocksDBStore(g_ceph_context, path);
+        std::map<std::string,std::string> options = {};
+		void *p = NULL;
+        auto db_ptr = new RocksDBStore(g_ceph_context, path, options, p);
         if (int r = db_ptr->create_and_open(std::cerr); r < 0) {
             cerr << "failed to open path " << path << ": "
                  << cpp_strerror(r) << std::endl;

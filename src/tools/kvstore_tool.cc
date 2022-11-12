@@ -20,8 +20,13 @@ StoreTool::StoreTool(const string& type,
 {
 
   if (need_stats) {
-    g_conf()->rocksdb_perf = true;
-    g_conf()->rocksdb_collect_compaction_stats = true;
+    if (type != "cabindb") {
+      g_conf()->rocksdb_perf = true;
+      g_conf()->rocksdb_collect_compaction_stats = true;
+    } else {
+      g_conf()->cabindb_perf = true;
+      g_conf()->cabindb_collect_compaction_stats = true;
+    }
   }
 
   if (type == "bluestore-kv") {
@@ -216,7 +221,7 @@ int StoreTool::print_stats() const
   ostringstream ostr;
   Formatter* f = Formatter::create("json-pretty", "json-pretty", "json-pretty");
   int ret = -1;
-  if (g_conf()->rocksdb_perf) {
+  if (g_conf()->rocksdb_perf || g_conf()->cabindb_perf) {
     db->get_statistics(f);
     ostr << "db_statistics ";
     f->flush(ostr);
@@ -267,7 +272,7 @@ int StoreTool::build_size_histogram(const string& prefix0) const
   }
 
   ceph::timespan duration = coarse_mono_clock::now() - start;
-  f->open_object_section("rocksdb_key_value_stats");
+  f->open_object_section("db_key_value_stats");
   for (size_t i = 0; i < MAX_PREFIX; ++i) {
     if (num[i]) {
       string key = "Records for prefix: ";

@@ -28,6 +28,8 @@ apt install nodejs -y
 
 apt install npm -y
 
+apt-get install libgflags-dev
+
 ./do_cmake.sh -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 chmod -R 777 ~/.cache

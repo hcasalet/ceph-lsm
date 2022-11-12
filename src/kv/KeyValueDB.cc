@@ -7,6 +7,7 @@
 #endif
 #include "MemDB.h"
 #include "RocksDBStore.h"
+#include "CabinDBStore.h"
 
 using std::map;
 using std::string;
@@ -24,6 +25,9 @@ KeyValueDB *KeyValueDB::create(CephContext *cct, const string& type,
   if (type == "rocksdb") {
     return new RocksDBStore(cct, dir, options, p);
   }
+  if (type == "cabindb") {
+    return new CabinDBStore(cct, dir, options, p);
+  }
   if ((type == "memdb") && 
     cct->check_experimental_feature_enabled("memdb")) {
     return new MemDB(cct, dir, p);
@@ -40,6 +44,9 @@ int KeyValueDB::test_init(const string& type, const string& dir)
 #endif
   if (type == "rocksdb") {
     return RocksDBStore::_test_init(dir);
+  }
+  if (type == "cabindb") {
+    return CabinDBStore::_test_init(dir);
   }
   if (type == "memdb") {
     return MemDB::_test_init(dir);

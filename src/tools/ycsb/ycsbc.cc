@@ -63,11 +63,15 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
 
 int main( const int argc, const char *argv[]) {
   utils::Properties props;
-  std::cout << "dbname=" << argv[2] << std::endl;
   std::string databasepath = "";
   if (argv[2] == std::string("leveldb")) {
     databasepath = "/tmp/test-leveldb";
+  } else if (argv[2] == std::string("rocksdb")) {
+    databasepath = "/tmp/test-rocksdb";
+  } else if (argv[2] == std::string("cabindb")) {
+    databasepath = "/tmp/test-cabindb";
   }
+
   Init(props, argv[2], databasepath);
   string file_name = ParseCommandLine(argc, argv, props);
 

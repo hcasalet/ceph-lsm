@@ -2187,6 +2187,7 @@ options:
   enum_values:
   - leveldb
   - rocksdb
+  - cabindb
   flags:
   - create
   with_legacy: true
@@ -3662,6 +3663,148 @@ options:
   type: size
   level: dev
   desc: The block size for index partitions. (0 = rocksdb default)
+  default: 4_K
+# osd_*_priority adjust the relative priority of client io, recovery io,
+# snaptrim io, etc
+#
+# osd_*_priority determines the ratio of available io between client and
+# recovery.  Each option may be set between
+# 1..63.
+- name: cabindb_log_to_ceph_log
+  type: bool
+  level: advanced
+  default: true
+  with_legacy: true
+- name: cabindb_cache_size
+  type: size
+  level: advanced
+  default: 512_M
+  flags:
+  - runtime
+  with_legacy: true
+# ratio of cache for row (vs block)
+- name: cabindb_cache_row_ratio
+  type: float
+  level: advanced
+  default: 0
+  with_legacy: true
+# cabindb block cache shard bits, 4 bit -> 16 shards
+- name: cabindb_cache_shard_bits
+  type: int
+  level: advanced
+  default: 4
+  with_legacy: true
+# 'lru' or 'clock'
+- name: cabindb_cache_type
+  type: str
+  level: advanced
+  default: binned_lru
+  with_legacy: true
+- name: cabindb_block_size
+  type: size
+  level: advanced
+  default: 4_K
+  with_legacy: true
+# Enabling this will have 5-10% impact on performance for the stats collection
+- name: cabindb_perf
+  type: bool
+  level: advanced
+  default: false
+  with_legacy: true
+# For cabindb, this behavior will be an overhead of 5%~10%, collected only cabindb_perf is enabled.
+- name: cabindb_collect_compaction_stats
+  type: bool
+  level: advanced
+  default: false
+  with_legacy: true
+# For cabindb, this behavior will be an overhead of 5%~10%, collected only cabindb_perf is enabled.
+- name: cabindb_collect_extended_stats
+  type: bool
+  level: advanced
+  default: false
+  with_legacy: true
+# For cabindb, this behavior will be an overhead of 5%~10%, collected only cabindb_perf is enabled.
+- name: cabindb_collect_memory_stats
+  type: bool
+  level: advanced
+  default: false
+  with_legacy: true
+- name: cabindb_delete_range_threshold
+  type: uint
+  level: advanced
+  desc: The number of keys required to invoke DeleteRange when deleting muliple keys.
+  default: 1_M
+- name: cabindb_bloom_bits_per_key
+  type: uint
+  level: advanced
+  desc: Number of bits per key to use for CabinDB's bloom filters.
+  long_desc: 'CabinDB bloom filters can be used to quickly answer the question of
+    whether or not a key may exist or definitely does not exist in a given CabinDB
+    SST file without having to read all keys into memory.  Using a higher bit value
+    decreases the likelihood of false positives at the expense of additional disk
+    space and memory consumption when the filter is loaded into RAM.  The current
+    default value of 20 was found to provide significant performance gains when getattr
+    calls are made (such as during new object creation in bluestore) without significant
+    memory overhead or cache pollution when combined with cabindb partitioned index
+    filters.  See: https://github.com/facebook/cabindb/wiki/Partitioned-Index-Filters
+    for more information.'
+  default: 20
+- name: cabindb_cache_index_and_filter_blocks
+  type: bool
+  level: dev
+  desc: Whether to cache indices and filters in block cache
+  long_desc: By default CabinDB will load an SST file's index and bloom filters into
+    memory when it is opened and remove them from memory when an SST file is closed.  Thus,
+    memory consumption by indices and bloom filters is directly tied to the number
+    of concurrent SST files allowed to be kept open.  This option instead stores cached
+    indicies and filters in the block cache where they directly compete with other
+    cached data.  By default we set this option to true to better account for and
+    bound cabindb memory usage and keep filters in memory even when an SST file is
+    closed.
+  default: true
+- name: cabindb_cache_index_and_filter_blocks_with_high_priority
+  type: bool
+  level: dev
+  desc: Whether to cache indices and filters in the block cache with high priority
+  long_desc: A downside of setting cabindb_cache_index_and_filter_blocks to true is
+    that regular data can push indices and filters out of memory.  Setting this option
+    to true means they are cached with higher priority than other data and should
+    typically stay in the block cache.
+  default: false
+- name: cabindb_pin_l0_filter_and_index_blocks_in_cache
+  type: bool
+  level: dev
+  desc: Whether to pin Level 0 indices and bloom filters in the block cache
+  long_desc: A downside of setting cabindb_cache_index_and_filter_blocks to true is
+    that regular data can push indices and filters out of memory.  Setting this option
+    to true means that level 0 SST files will always have their indices and filters
+    pinned in the block cache.
+  default: false
+- name: cabindb_index_type
+  type: str
+  level: dev
+  desc: 'Type of index for SST files: binary_search, hash_search, two_level'
+  long_desc: 'This option controls the table index type.  binary_search is a space
+    efficient index block that is optimized for block-search-based index. hash_search
+    may improve prefix lookup performance at the expense of higher disk and memory
+    usage and potentially slower compactions.  two_level is an experimental index
+    type that uses two binary search indexes and works in conjunction with partition
+    filters.  See: http://cabindb.org/blog/2017/05/12/partitioned-index-filter.html'
+  default: binary_search
+- name: cabindb_partition_filters
+  type: bool
+  level: dev
+  desc: (experimental) partition SST index/filters into smaller blocks
+  long_desc: 'This is an experimental option for cabindb that works in conjunction
+    with two_level indices to avoid having to keep the entire filter/index in cache
+    when cache_index_and_filter_blocks is true.  The idea is to keep a much smaller
+    top-level index in heap/cache and then opportunistically cache the lower level
+    indices.  See: https://github.com/facebook/cabindb/wiki/Partitioned-Index-Filters'
+  default: false
+- name: cabindb_metadata_block_size
+  type: size
+  level: dev
+  desc: The block size for index partitions. (0 = cabindb default)
   default: 4_K
 # osd_*_priority adjust the relative priority of client io, recovery io,
 # snaptrim io, etc
@@ -5424,6 +5567,7 @@ options:
   enum_values:
   - leveldb
   - rocksdb
+  - cabindb
   with_legacy: true
 - name: filestore_omap_backend_path
   type: str

@@ -1,0 +1,5 @@
+// Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+#include "build_version.h"
+const char* cabindb_build_git_sha = "cabindb_build_git_sha:@@GIT_SHA@@";
+const char* cabindb_build_git_date = "cabindb_build_git_date:@@GIT_DATE_TIME@@";
+const char* cabindb_build_compile_date = __DATE__;

@@ -2,6 +2,8 @@ set(ycsb_cephlsm_srcs
   ycsbc.cc
   cephlsm_db.cc
   level_db.cc
+  rocks_db.cc
+  cabin_db.cc
   readoptimized_db.cc
   writeoptimized_db.cc
   db_factory.cc
