@@ -306,6 +306,11 @@ Status DBImpl::FlushMemTableToOutputFile(
   return s;
 }
 
+Status DBImpl::ClearMemTablesNoFlush(ColumnFamilyData* cfd) {
+  MutableCFOptions mutable_cf_options = *cfd->GetLatestMutableCFOptions();
+  cfd->CreateNewMemtable(mutable_cf_options, kMaxSequenceNumber);
+}
+
 Status DBImpl::FlushMemTablesToOutputFiles(
     const autovector<BGFlushArg>& bg_flush_args, bool* made_progress,
     JobContext* job_context, LogBuffer* log_buffer, Env::Priority thread_pri) {
@@ -323,6 +328,7 @@ Status DBImpl::FlushMemTablesToOutputFiles(
     ColumnFamilyData* cfd = arg.cfd_;
     MutableCFOptions mutable_cf_options = *cfd->GetLatestMutableCFOptions();
     SuperVersionContext* superversion_context = arg.superversion_context_;
+
     Status s = FlushMemTableToOutputFile(
         cfd, mutable_cf_options, made_progress, job_context,
         superversion_context, snapshot_seqs, earliest_write_conflict_snapshot,
@@ -2378,6 +2384,13 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
         column_families_not_to_flush.push_back(cfd);
         continue;
       }
+      /*if (std::strcmp(cfd->GetName().c_str(), "default") == 0) {
+        // not to flush cf default
+        ClearMemTablesNoFlush(cfd);
+        if (cfd->UnrefAndTryDelete()) {
+        }
+        continue;
+      }*/
       superversion_contexts.emplace_back(SuperVersionContext(true));
       bg_flush_args.emplace_back(cfd, iter.second,
                                  &(superversion_contexts.back()));

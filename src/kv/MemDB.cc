@@ -202,7 +202,7 @@ int MemDB::open(ostream &out, const std::string& cfs) {
   return do_open(out, false);
 }
 
-int MemDB::create_and_open(ostream &out, const std::string& cfs) {
+int MemDB::create_and_open(ostream &out, bool create_if_missing, const std::string& cfs) {
   if (!cfs.empty()) {
     ceph_abort_msg("Not implemented");
   }

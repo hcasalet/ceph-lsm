@@ -239,7 +239,7 @@ public:
     return do_open(out, false, false, cfs);
   }
   /// Creates underlying db if missing and opens it
-  int create_and_open(std::ostream &out,
+  int create_and_open(std::ostream &out, bool create_if_missing=false,
 		      const std::string& cfs="") override;
 
   int open_read_only(std::ostream &out, const std::string& cfs="") override {

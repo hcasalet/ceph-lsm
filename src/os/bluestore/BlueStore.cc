@@ -6159,7 +6159,7 @@ int BlueStore::_open_db(bool create, bool to_repair_db, bool read_only)
   if (to_repair_db)
     return 0;
   if (create) {
-    r = db->create_and_open(err, sharding_def);
+    r = db->create_and_open(err, true, sharding_def);
   } else {
     // we pass in cf list here, but it is only used if the db already has
     // column families created.

@@ -44,7 +44,7 @@ namespace ycsbc {
     
     private:
         std::unique_ptr<CabinDBStore> db;
-        unsigned noResult;
+        std::vector<std::string> vec_cf;
 
         void SetOptions(const char *dbfilename, utils::Properties &props);
         void SerializeValues(std::vector<KVPair> &kvs, std::string &value);

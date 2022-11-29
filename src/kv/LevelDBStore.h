@@ -179,7 +179,7 @@ public:
   /// Opens underlying db
   int open(std::ostream &out, const std::string& cfs="") override;
   /// Creates underlying db if missing and opens it
-  int create_and_open(std::ostream &out, const std::string& cfs="") override;
+  int create_and_open(std::ostream &out, bool create_if_missing=false, const std::string& cfs="") override;
 
   void close() override;
 

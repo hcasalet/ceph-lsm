@@ -145,7 +145,7 @@ public:
   virtual int init(std::string option_str="") = 0;
   virtual int open(std::ostream &out, const std::string& cfs="") = 0;
   // std::vector cfs contains column families to be created when db is created.
-  virtual int create_and_open(std::ostream &out, const std::string& cfs="") = 0;
+  virtual int create_and_open(std::ostream &out, bool create_if_missing=false, const std::string& cfs="") = 0;
 
   virtual int open_read_only(std::ostream &out, const std::string& cfs="") {
     return -ENOTSUP;

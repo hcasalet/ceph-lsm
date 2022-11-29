@@ -375,6 +375,22 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) 
       }
       props.SetProperty("morerun",argv[argindex]);
       argindex++;
+    } else if(strcmp(argv[argindex],"-createdb")==0){
+      argindex++;
+      if(argindex >= argc){
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("createdb",argv[argindex]);
+      argindex++;
+    } else if(strcmp(argv[argindex],"-columnfamilyshards")==0){
+      argindex++;
+      if(argindex >= argc){
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("columnfamilyshards",argv[argindex]);
+      argindex++;
     } else if (strcmp(argv[argindex], "-P") == 0) {
       argindex++;
       if (argindex >= argc) {
@@ -430,6 +446,8 @@ void Init(utils::Properties &props, std::string dbname, std::string dbpath){
   props.SetProperty("dbstatistics","false");
   props.SetProperty("dbwaitforbalance","false");
   props.SetProperty("morerun","");
+  props.SetProperty("createdb", "false");
+  props.SetProperty("columnfamilyshards","0");
 }
 
 void PrintInfo(utils::Properties &props) {

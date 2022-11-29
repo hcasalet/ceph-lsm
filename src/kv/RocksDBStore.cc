@@ -449,7 +449,7 @@ int RocksDBStore::install_cf_mergeop(
 }
 
 int RocksDBStore::create_and_open(ostream &out,
-				  const std::string& cfs)
+				   bool create_if_missing, const std::string& cfs)
 {
   int r = create_db_dir();
   if (r < 0)

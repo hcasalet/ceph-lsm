@@ -449,13 +449,13 @@ int CabinDBStore::install_cf_mergeop(
   return 0;
 }
 
-int CabinDBStore::create_and_open(ostream &out,
-				  const std::string& cfs)
+int CabinDBStore::create_and_open(ostream &out, 
+          bool create_if_missing, const std::string& cfs)
 {
   int r = create_db_dir();
   if (r < 0)
     return r;
-  return do_open(out, true, false, cfs);
+  return do_open(out, create_if_missing, false, cfs);
 }
 
 std::shared_ptr<cabindb::Cache> CabinDBStore::create_block_cache(
@@ -714,36 +714,36 @@ bool CabinDBStore::parse_sharding_def(const std::string_view text_def_in,
       char* endptr;
       shard_cnt = strtol(nptr, &endptr, 10);
       if (nptr == endptr) {
-	*error_position = nptr;
-	*error_msg = "expecting integer";
-	break;
+	      *error_position = nptr;
+	      *error_msg = "expecting integer";
+	      break;
       }
       nptr = endptr;
       if (*nptr == ',') {
-	nptr++;
-	l_bound = strtol(nptr, &endptr, 10);
-	if (nptr == endptr) {
-	  *error_position = nptr;
-	  *error_msg = "expecting integer";
-	  break;
-	}
-	nptr = endptr;
-	if (*nptr != '-') {
-	  *error_position = nptr;
-	  *error_msg = "expecting '-'";
-	  break;
-	}
-	nptr++;
-	h_bound = strtol(nptr, &endptr, 10);
-	if (nptr == endptr) {
-	  h_bound = std::numeric_limits<uint32_t>::max();
-	}
-	nptr = endptr;
+	      nptr++;
+	      l_bound = strtol(nptr, &endptr, 10);
+	      if (nptr == endptr) {
+	        *error_position = nptr;
+	        *error_msg = "expecting integer";
+	        break;
+	      }
+	      nptr = endptr;
+	      if (*nptr != '-') {
+	        *error_position = nptr;
+	        *error_msg = "expecting '-'";
+	        break;
+	      }
+	      nptr++;
+	      h_bound = strtol(nptr, &endptr, 10);
+	      if (nptr == endptr) {
+	        h_bound = std::numeric_limits<uint32_t>::max();
+	      }
+	      nptr = endptr;
       }
       if (*nptr != ')') {
-	*error_position = nptr;
-	*error_msg = "expecting ')'";
-	break;
+	      *error_position = nptr;
+	      *error_msg = "expecting ')'";
+	      break;
       }
     } else {
       name = column_def;
@@ -759,10 +759,10 @@ void CabinDBStore::sharding_def_to_columns(const std::vector<ColumnFamily>& shar
   columns.clear();
   for (size_t i = 0; i < sharding_def.size(); i++) {
     if (sharding_def[i].shard_cnt == 1) {
-	columns.push_back(sharding_def[i].name);
+	    columns.push_back(sharding_def[i].name);
     } else {
       for (size_t j = 0; j < sharding_def[i].shard_cnt; j++) {
-	columns.push_back(sharding_def[i].name + "-" + to_string(j));
+	      columns.push_back(sharding_def[i].name + "-" + to_string(j));
       }
     }
   }
@@ -1115,8 +1115,8 @@ int CabinDBStore::do_open(ostream &out,
         status = cabindb::DB::Open(opt, path, &db);
       }
       if (!status.ok()) {
-	derr << status.ToString() << dendl;
-	return -EINVAL;
+	      derr << status.ToString() << dendl;
+	      return -EINVAL;
       }
       default_cf = db->DefaultColumnFamily();
     } else {
@@ -1130,14 +1130,14 @@ int CabinDBStore::do_open(ostream &out,
 				   path, existing_cfs, &handles, &db);
       }
       if (!status.ok()) {
-	derr << status.ToString() << dendl;
-	return -EINVAL;
+	      derr << status.ToString() << dendl;
+	      return -EINVAL;
       }
       ceph_assert(existing_cfs.size() == existing_cfs_shard.size() + 1);
       ceph_assert(handles.size() == existing_cfs.size());
       dout(10) << __func__ << " existing_cfs=" << existing_cfs.size() << dendl;
       for (size_t i = 0; i < existing_cfs_shard.size(); i++) {
-	add_column_family(existing_cfs_shard[i].second.name,
+	      add_column_family(existing_cfs_shard[i].second.name,
 			  existing_cfs_shard[i].second.hash_l,
 			  existing_cfs_shard[i].second.hash_h,
 			  existing_cfs_shard[i].first,
@@ -1147,28 +1147,27 @@ int CabinDBStore::do_open(ostream &out,
       must_close_default_cf = true;
 
       if (missing_cfs.size() > 0 &&
-	  std::find_if(missing_cfs.begin(), missing_cfs.end(),
+	      std::find_if(missing_cfs.begin(), missing_cfs.end(),
 		       [](const cabindb::ColumnFamilyDescriptor& c) { return c.name == resharding_column_lock; }
-		       ) == missing_cfs.end())
-	{
-	dout(10) << __func__ << " missing_cfs=" << missing_cfs.size() << dendl;
-	ceph_assert(recreate_mode);
-	ceph_assert(missing_cfs.size() == missing_cfs_shard.size());
-	for (size_t i = 0; i < missing_cfs.size(); i++) {
-	  cabindb::ColumnFamilyHandle *cf;
-	  status = db->CreateColumnFamily(missing_cfs[i].options, missing_cfs[i].name, &cf);
-	  if (!status.ok()) {
-	    derr << __func__ << " Failed to create cabindb column family: "
-		 << missing_cfs[i].name << dendl;
-	    return -EINVAL;
-	  }
-	  add_column_family(missing_cfs_shard[i].second.name,
-			    missing_cfs_shard[i].second.hash_l,
-			    missing_cfs_shard[i].second.hash_h,
-			    missing_cfs_shard[i].first,
-			    cf);
-	}
-	opt.env->DeleteFile(sharding_recreate);
+		       ) == missing_cfs.end()) {
+	      dout(10) << __func__ << " missing_cfs=" << missing_cfs.size() << dendl;
+	      ceph_assert(recreate_mode);
+	      ceph_assert(missing_cfs.size() == missing_cfs_shard.size());
+	      for (size_t i = 0; i < missing_cfs.size(); i++) {
+	        cabindb::ColumnFamilyHandle *cf;
+	        status = db->CreateColumnFamily(missing_cfs[i].options, missing_cfs[i].name, &cf);
+	        if (!status.ok()) {
+	          derr << __func__ << " Failed to create cabindb column family: "
+		             << missing_cfs[i].name << dendl;
+	          return -EINVAL;
+	        }
+	        add_column_family(missing_cfs_shard[i].second.name,
+			      missing_cfs_shard[i].second.hash_l,
+			      missing_cfs_shard[i].second.hash_h,
+			      missing_cfs_shard[i].first,
+			      cf);
+	      }
+	      opt.env->DeleteFile(sharding_recreate);
       }
     }
   }
@@ -1491,8 +1490,6 @@ int CabinDBStore::submit_common(cabindb::WriteOptions& woptions, KeyValueDB::Tra
   CabinWBHandler bat_txc(*this);
   _t->bat.Iterate(&bat_txc);
   *_dout << " Cabindb transaction: " << bat_txc.seen.str() << dendl;
-  
-  std::cout << "Holly in submit common: " << std::endl;
 
   cabindb::Status s = db->Write(woptions, &_t->bat);
   if (!s.ok()) {
@@ -1544,7 +1541,6 @@ int CabinDBStore::submit_transaction_sync(KeyValueDB::Transaction t)
   cabindb::WriteOptions woptions;
   // if disableWAL, sync can't set
   woptions.sync = !disableWAL;
-  std::cout << "Holly checking disableWAL: " << disableWAL << std::endl;
   
   int result = submit_common(woptions, t);
   
@@ -1915,9 +1911,9 @@ void CabinDBStore::compact()
   for (auto cf : cf_handles) {
     for (auto shard_cf : cf.second.handles) {
       db->CompactRange(
-	options,
-	shard_cf,
-	nullptr, nullptr);
+	      options,
+	      shard_cf,
+	      nullptr, nullptr);
     }
   }
 }
@@ -3222,47 +3218,47 @@ int CabinDBStore::reshard(const std::string& new_sharding, const CabinDBStore::r
       dout(30) << "key=" << pretty_binary_string(raw_key.ToString()) << dendl;
       //check if need to refresh iterator
       if (bytes_per_iterator >= ctrl.bytes_per_iterator ||
-	  keys_per_iterator >= ctrl.keys_per_iterator) {
-	dout(8) << "refreshing iterator" << dendl;
-	bytes_per_iterator = 0;
-	keys_per_iterator = 0;
-	std::string raw_key_str = raw_key.ToString();
-	it.reset(db->NewIterator(cabindb::ReadOptions(), handle));
-	ceph_assert(it);
-	it->Seek(raw_key_str);
-	ceph_assert(it->Valid());
-	raw_key = it->key();
+	        keys_per_iterator >= ctrl.keys_per_iterator) {
+	      dout(8) << "refreshing iterator" << dendl;
+	      bytes_per_iterator = 0;
+	      keys_per_iterator = 0;
+	      std::string raw_key_str = raw_key.ToString();
+	      it.reset(db->NewIterator(cabindb::ReadOptions(), handle));
+	      ceph_assert(it);
+	      it->Seek(raw_key_str);
+	      ceph_assert(it->Valid());
+	      raw_key = it->key();
       }
       cabindb::Slice value = it->value();
       std::string prefix, key;
       if (fixed_prefix.size() == 0) {
-	split_key(raw_key, &prefix, &key);
+	      split_key(raw_key, &prefix, &key);
       } else {
-	prefix = fixed_prefix;
-	key = raw_key.ToString();
+	      prefix = fixed_prefix;
+	      key = raw_key.ToString();
       }
       keys_processed++;
       if ((keys_processed % 10000) == 0) {
-	dout(10) << "processed " << keys_processed << " keys, moved " << keys_moved << dendl;
+	      dout(10) << "processed " << keys_processed << " keys, moved " << keys_moved << dendl;
       }
       cabindb::ColumnFamilyHandle* new_handle = get_cf_handle(prefix, key);
       if (new_handle == nullptr) {
-	new_handle = default_cf;
+	      new_handle = default_cf;
       }
       if (handle == new_handle) {
-	continue;
+	      continue;
       }
       std::string new_raw_key;
       if (new_handle == default_cf) {
-	new_raw_key = combine_strings(prefix, key);
+	      new_raw_key = combine_strings(prefix, key);
       } else {
-	new_raw_key = key;
+	      new_raw_key = key;
       }
       bat.Delete(handle, raw_key);
       bat.Put(new_handle, new_raw_key, value);
       dout(25) << "moving " << (void*)handle << "/" << pretty_binary_string(raw_key.ToString()) <<
-	" to " << (void*)new_handle << "/" << pretty_binary_string(new_raw_key) <<
-	" size " << value.size() << dendl;
+	        " to " << (void*)new_handle << "/" << pretty_binary_string(new_raw_key) <<
+	        " size " << value.size() << dendl;
       keys_moved++;
       bytes_in_batch += new_raw_key.size() * 2 + value.size();
       keys_in_batch++;
@@ -3271,11 +3267,11 @@ int CabinDBStore::reshard(const std::string& new_sharding, const CabinDBStore::r
 
       //check if need to write batch
       if (bytes_in_batch >= ctrl.bytes_per_batch ||
-	  keys_in_batch >= ctrl.keys_per_batch) {
-	flush_batch(&bat);
-	if (ctrl.unittest_fail_after_first_batch) {
-	  return -1000;
-	}
+	        keys_in_batch >= ctrl.keys_per_batch) {
+	      flush_batch(&bat);
+	      if (ctrl.unittest_fail_after_first_batch) {
+	        return -1000;
+	      }
       }
     }
     if (bat.Count() > 0) {

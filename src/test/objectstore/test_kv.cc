@@ -316,7 +316,7 @@ TEST_P(KVTest, ShardingRMRange) {
   if(string(GetParam()) != "rocksdb")
     return;
   std::string cfs("O(7)=");
-  ASSERT_EQ(0, db->create_and_open(cout, cfs));
+  ASSERT_EQ(0, db->create_and_open(cout, true, cfs));
   {
     KeyValueDB::Transaction t = db->get_transaction();
     for (size_t i = 0; i < 1000; i++) {
@@ -356,7 +356,7 @@ TEST_P(KVTest, RocksDBColumnFamilyTest) {
   std::string cfs("cf1 cf2");
   ASSERT_EQ(0, db->init(g_conf()->bluestore_rocksdb_options));
   cout << "creating two column families and opening them" << std::endl;
-  ASSERT_EQ(0, db->create_and_open(cout, cfs));
+  ASSERT_EQ(0, db->create_and_open(cout, true, cfs));
   {
     KeyValueDB::Transaction t = db->get_transaction();
     bufferlist value;
@@ -410,7 +410,7 @@ TEST_P(KVTest, RocksDBIteratorTest) {
   std::string cfs("cf1");
   ASSERT_EQ(0, db->init(g_conf()->bluestore_rocksdb_options));
   cout << "creating one column family and opening it" << std::endl;
-  ASSERT_EQ(0, db->create_and_open(cout, cfs));
+  ASSERT_EQ(0, db->create_and_open(cout, true, cfs));
   {
     KeyValueDB::Transaction t = db->get_transaction();
     bufferlist bl1;
@@ -458,7 +458,7 @@ TEST_P(KVTest, RocksDBShardingIteratorTest) {
   std::string cfs("A(6)");
   ASSERT_EQ(0, db->init(g_conf()->bluestore_rocksdb_options));
   cout << "creating one column family and opening it" << std::endl;
-  ASSERT_EQ(0, db->create_and_open(cout, cfs));
+  ASSERT_EQ(0, db->create_and_open(cout, true, cfs));
   {
     KeyValueDB::Transaction t = db->get_transaction();
     for (int v = 100; v <= 999; v++) {
@@ -504,7 +504,7 @@ TEST_P(KVTest, RocksDBCFMerge) {
   std::string cfs("cf1");
   ASSERT_EQ(0, db->init(g_conf()->bluestore_rocksdb_options));
   cout << "creating one column family and opening it" << std::endl;
-  ASSERT_EQ(0, db->create_and_open(cout, cfs));
+  ASSERT_EQ(0, db->create_and_open(cout, true, cfs));
 
   {
     KeyValueDB::Transaction t = db->get_transaction();
@@ -581,7 +581,7 @@ TEST_P(KVTest, RocksDB_estimate_size_column_family) {
   std::string cfs("cf1");
   ASSERT_EQ(0, db->init(g_conf()->bluestore_rocksdb_options));
   cout << "creating one column family and opening it" << std::endl;
-  ASSERT_EQ(0, db->create_and_open(cout, cfs));
+  ASSERT_EQ(0, db->create_and_open(cout, true, cfs));
 
   for(int test = 0; test < 20; test++)
   {
@@ -703,7 +703,7 @@ public:
     ASSERT_EQ(0, db->init(g_conf()->bluestore_rocksdb_options));
     if (verbose)
       cout << "Creating database with sharding: " << GetParam() << std::endl;
-    ASSERT_EQ(0, db->create_and_open(cout, GetParam()));
+    ASSERT_EQ(0, db->create_and_open(cout, true, GetParam()));
   }
   void TearDown() override {
     db.reset(nullptr);
@@ -1133,7 +1133,7 @@ public:
 };
 
 TEST_F(RocksDBResharding, basic) {
-  ASSERT_EQ(0, db->create_and_open(cout, ""));
+  ASSERT_EQ(0, db->create_and_open(cout, true, ""));
   generate_data();
   data_to_db();
   check_db();
@@ -1145,7 +1145,7 @@ TEST_F(RocksDBResharding, basic) {
 }
 
 TEST_F(RocksDBResharding, all_to_shards) {
-  ASSERT_EQ(0, db->create_and_open(cout, ""));
+  ASSERT_EQ(0, db->create_and_open(cout, true, ""));
   generate_data();
   data_to_db();
   check_db();
@@ -1157,7 +1157,7 @@ TEST_F(RocksDBResharding, all_to_shards) {
 }
 
 TEST_F(RocksDBResharding, all_to_shards_and_back_again) {
-  ASSERT_EQ(0, db->create_and_open(cout, ""));
+  ASSERT_EQ(0, db->create_and_open(cout, true, ""));
   generate_data();
   data_to_db();
   check_db();
@@ -1173,7 +1173,7 @@ TEST_F(RocksDBResharding, all_to_shards_and_back_again) {
 }
 
 TEST_F(RocksDBResharding, resume_interrupted_at_batch) {
-  ASSERT_EQ(0, db->create_and_open(cout, ""));
+  ASSERT_EQ(0, db->create_and_open(cout, true, ""));
   generate_data();
   data_to_db();
   check_db();
@@ -1189,7 +1189,7 @@ TEST_F(RocksDBResharding, resume_interrupted_at_batch) {
 }
 
 TEST_F(RocksDBResharding, resume_interrupted_at_column) {
-  ASSERT_EQ(0, db->create_and_open(cout, ""));
+  ASSERT_EQ(0, db->create_and_open(cout, true, ""));
   generate_data();
   data_to_db();
   check_db();
@@ -1205,7 +1205,7 @@ TEST_F(RocksDBResharding, resume_interrupted_at_column) {
 }
 
 TEST_F(RocksDBResharding, resume_interrupted_before_commit) {
-  ASSERT_EQ(0, db->create_and_open(cout, ""));
+  ASSERT_EQ(0, db->create_and_open(cout, true, ""));
   generate_data();
   data_to_db();
   check_db();
@@ -1221,7 +1221,7 @@ TEST_F(RocksDBResharding, resume_interrupted_before_commit) {
 }
 
 TEST_F(RocksDBResharding, prevent_incomplete_hash_change) {
-  ASSERT_EQ(0, db->create_and_open(cout, "Evade(4,0-3)"));
+  ASSERT_EQ(0, db->create_and_open(cout, true, "Evade(4,0-3)"));
   generate_data();
   data_to_db();
   check_db();
@@ -1237,7 +1237,7 @@ TEST_F(RocksDBResharding, prevent_incomplete_hash_change) {
 }
 
 TEST_F(RocksDBResharding, change_reshard) {
-  ASSERT_EQ(0, db->create_and_open(cout, "Ad(4)"));
+  ASSERT_EQ(0, db->create_and_open(cout, true, "Ad(4)"));
   generate_data();
   data_to_db();
   check_db();

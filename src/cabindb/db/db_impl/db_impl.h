@@ -1469,6 +1469,9 @@ class DBImpl : public DB {
       const autovector<BGFlushArg>& bg_flush_args, bool* made_progress,
       JobContext* job_context, LogBuffer* log_buffer, Env::Priority thread_pri);
 
+  // Clear Memtable no flush
+  Status ClearMemTablesNoFlush(ColumnFamilyData* cfd);
+
   Status AtomicFlushMemTablesToOutputFiles(
       const autovector<BGFlushArg>& bg_flush_args, bool* made_progress,
       JobContext* job_context, LogBuffer* log_buffer, Env::Priority thread_pri);

@@ -2869,7 +2869,6 @@ class ModelDB : public DB {
   }
 
   Status Write(const WriteOptions& /*options*/, WriteBatch* batch) override {
-    std::cout << "Holly in db_test.cc" < std::endlll;
     class Handler : public WriteBatch::Handler {
      public:
       KVMap* map_;

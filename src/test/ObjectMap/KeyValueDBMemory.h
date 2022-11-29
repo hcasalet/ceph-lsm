@@ -24,7 +24,7 @@ public:
   int open(std::ostream &out, const std::string& cfs="") override {
     return 0;
   }
-  int create_and_open(ostream &out, const std::string& cfs="") override {
+  int create_and_open(ostream &out, bool create_if_missing=false, const std::string& cfs="") override {
     return 0;
   }
 
