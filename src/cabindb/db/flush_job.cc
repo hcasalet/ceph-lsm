@@ -297,6 +297,25 @@ Status FlushJob::Run(LogsWithPrepTracker* prep_tracker,
   return s;
 }
 
+Status FlushJob::ClearMem(LogsWithPrepTracker* prep_tracker,
+                     FileMetaData* file_meta) {
+  if (mems_.empty()) {
+    CABIN_LOG_BUFFER(log_buffer_, "[%s] Nothing in memtable to flush",
+                     cfd_->GetName().c_str());
+    return Status::OK();
+  }
+
+  // Replace immutable memtable with the generated Table
+  IOStatus tmp_io_s;
+  Status s = cfd_->imm()->TryReleaseMemtableAndCreateNew(
+      cfd_, mutable_cf_options_, mems_, prep_tracker, versions_, db_mutex_,
+      meta_.fd.GetNumber(), &job_context_->memtables_to_free, db_directory_,
+      log_buffer_, &committed_flush_jobs_info_, &tmp_io_s);
+
+
+  return s;
+}
+
 void FlushJob::Cancel() {
   db_mutex_->AssertHeld();
   assert(base_ != nullptr);

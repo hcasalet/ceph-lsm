@@ -1470,7 +1470,14 @@ class DBImpl : public DB {
       JobContext* job_context, LogBuffer* log_buffer, Env::Priority thread_pri);
 
   // Clear Memtable no flush
-  Status ClearMemTablesNoFlush(ColumnFamilyData* cfd);
+  Status ClearMemTablesNoFlush(
+      ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options,
+      bool* madeProgress, JobContext* job_context,
+      SuperVersionContext* superversion_context,
+      std::vector<SequenceNumber>& snapshot_seqs,
+      SequenceNumber earliest_write_conflict_snapshot,
+      SnapshotChecker* snapshot_checker, LogBuffer* log_buffer,
+      Env::Priority thread_pri);
 
   Status AtomicFlushMemTablesToOutputFiles(
       const autovector<BGFlushArg>& bg_flush_args, bool* made_progress,

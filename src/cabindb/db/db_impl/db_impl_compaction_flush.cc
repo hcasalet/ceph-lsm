@@ -306,9 +306,46 @@ Status DBImpl::FlushMemTableToOutputFile(
   return s;
 }
 
-Status DBImpl::ClearMemTablesNoFlush(ColumnFamilyData* cfd) {
-  MutableCFOptions mutable_cf_options = *cfd->GetLatestMutableCFOptions();
-  cfd->CreateNewMemtable(mutable_cf_options, kMaxSequenceNumber);
+Status DBImpl::ClearMemTablesNoFlush(
+    ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options,
+    bool* made_progress, JobContext* job_context,
+    SuperVersionContext* superversion_context,
+    std::vector<SequenceNumber>& snapshot_seqs,
+    SequenceNumber earliest_write_conflict_snapshot,
+    SnapshotChecker* snapshot_checker, LogBuffer* log_buffer,
+    Env::Priority thread_pri) {
+  mutex_.AssertHeld();
+  assert(cfd);
+
+  FlushJob flush_job(
+      dbname_, cfd, immutable_db_options_, mutable_cf_options,
+      nullptr /* memtable_id */, file_options_for_compaction_, versions_.get(),
+      &mutex_, &shutting_down_, snapshot_seqs, earliest_write_conflict_snapshot,
+      snapshot_checker, job_context, log_buffer, directories_.GetDbDir(),
+      GetDataDir(cfd, 0U),
+      GetCompressionFlush(*cfd->ioptions(), mutable_cf_options), stats_,
+      &event_logger_, mutable_cf_options.report_bg_io_stats,
+      true /* sync_output_directory */, true /* write_manifest */, thread_pri,
+      io_tracer_, db_id_, db_session_id_);
+  FileMetaData file_meta;
+
+  TEST_SYNC_POINT("DBImpl::FlushMemTableToOutputFile:BeforePickMemtables");
+  flush_job.PickMemTable();
+  TEST_SYNC_POINT("DBImpl::FlushMemTableToOutputFile:AfterPickMemtables");
+
+
+  Status s;
+  IOStatus io_s = IOStatus::OK();
+
+  // Within flush_job.Run, cabindb may call event listener to notify
+  // file creation and deletion.
+  //
+  // Note that flush_job.Run will unlock and lock the db_mutex,
+  // and EventListener callback will be called when the db_mutex
+  // is unlocked by the current thread.
+  s = flush_job.ClearMem(&logs_with_prep_tracker_, &file_meta);
+
+  return s;
 }
 
 Status DBImpl::FlushMemTablesToOutputFiles(
@@ -329,10 +366,17 @@ Status DBImpl::FlushMemTablesToOutputFiles(
     MutableCFOptions mutable_cf_options = *cfd->GetLatestMutableCFOptions();
     SuperVersionContext* superversion_context = arg.superversion_context_;
 
-    Status s = FlushMemTableToOutputFile(
+    Status s;
+    if (strcmp(cfd->GetName().c_str(), "default") == 0) {
+      s = ClearMemTablesNoFlush(cfd, mutable_cf_options, made_progress, job_context,
+        superversion_context, snapshot_seqs, earliest_write_conflict_snapshot,
+        snapshot_checker, log_buffer, thread_pri);
+    } else {
+      s = FlushMemTableToOutputFile(
         cfd, mutable_cf_options, made_progress, job_context,
         superversion_context, snapshot_seqs, earliest_write_conflict_snapshot,
         snapshot_checker, log_buffer, thread_pri);
+    }
     if (!s.ok()) {
       status = s;
       if (!s.IsShutdownInProgress() && !s.IsColumnFamilyDropped()) {
