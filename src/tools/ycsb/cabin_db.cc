@@ -46,7 +46,7 @@ namespace ycsbc {
                       std::vector<KVPair> &result) 
     {
         bufferlist bl_res;
-        db->get("test", key, &bl_res);
+        db->get("row-wise", key, &bl_res);
         decode(result, bl_res);
         return CabinDB::kOK;
     }
